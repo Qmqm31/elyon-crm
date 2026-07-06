@@ -30,13 +30,28 @@ const STATUTS = ["En attente", "Payé", "Annulé"];
 
 /* ---- Prospection ---- */
 const PROSPECTION_STATUTS = [
-  "Pas de réponse", "À rappeler", "Refus", "RDV pris", "RDV honoré",
-  "RDV annulé", "RDV reporté", "Proposition envoyée", "Signé", "Perdu",
+  "1er appel — pas de réponse", "2e appel — pas de réponse", "3e appel — pas de réponse",
+  "À rappeler", "Refus", "KO — ne plus rappeler",
+  "RDV pris", "RDV honoré", "RDV annulé", "RDV reporté", "Proposition envoyée", "Signé", "Perdu",
 ];
 const PROSPECTION_COLORS = {
-  "Pas de réponse": "#8593a8", "À rappeler": "#b58900", "Refus": "#B3261E",
-  "RDV pris": "#13315C", "RDV honoré": "#0B2545", "RDV annulé": "#B3261E",
-  "RDV reporté": "#b58900", "Proposition envoyée": "#7a5c17", "Signé": "#1b7a3d", "Perdu": "#B3261E",
+  "1er appel — pas de réponse": "#b58900", "2e appel — pas de réponse": "#d97706", "3e appel — pas de réponse": "#b45309",
+  "Pas de réponse": "#b58900", "À rappeler": "#b58900", "Refus": "#B3261E", "KO — ne plus rappeler": "#8f1d1d",
+  "RDV pris": "#1b7a3d", "RDV honoré": "#0B2545",
+  "RDV annulé": "#B3261E", "RDV reporté": "#b58900", "Proposition envoyée": "#7a5c17", "Signé": "#1b7a3d", "Perdu": "#B3261E",
+};
+/* Couleur de fond des LIGNES du tableau de prospection (texte foncé conservé = lisible) */
+const PROSPECTION_ROW_BG = {
+  "RDV pris": "#e3f5e9",
+  "Signé": "#d7f0df",
+  "RDV honoré": "#e3f5e9",
+  "1er appel — pas de réponse": "#fdf6d8",
+  "Pas de réponse": "#fdf6d8",
+  "2e appel — pas de réponse": "#ffe9cc",
+  "3e appel — pas de réponse": "#ffdcb3",
+  "Refus": "#ffe3e0",
+  "KO — ne plus rappeler": "#ffd6d1",
+  "Perdu": "#ffe3e0",
 };
 const PROFESSIONS_SANTE = [
   "Infirmier(ère) libéral(e)", "Kinésithérapeute", "Dentiste", "Médecin généraliste",
@@ -80,7 +95,15 @@ const nextMonthKey = (key) => {
 
 const parseNum = (v) => {
   if (v === null || v === undefined) return 0;
-  const n = parseFloat(String(v).replace(/\s/g, "").replace(/[^\d.,-]/g, "").replace(",", "."));
+  let s = String(v).replace(/\s|\u00a0/g, "").replace(/[^\d.,-]/g, "");
+  if (!s) return 0;
+  const lastC = s.lastIndexOf(","), lastD = s.lastIndexOf(".");
+  if (lastC > -1 && lastD > -1) {
+    /* les deux séparateurs présents : le dernier est la décimale */
+    if (lastC > lastD) s = s.replace(/\./g, "").replace(",", ".");
+    else s = s.replace(/,/g, "");
+  } else if (lastC > -1) s = s.replace(",", ".");
+  const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 };
 const fmtEUR = (n) =>
@@ -130,11 +153,24 @@ const downloadCSV = (filename, headers, rows) => {
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const csv = "\uFEFF" + [headers.map(esc).join(";"), ...rows.map((r) => r.map(esc).join(";"))].join("\r\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+};
+
+/* Format automatique en euros : "1200" → "1 200,00 €" (saisie libre conservée si non numérique) */
+const autoEUR = (raw) => {
+  const s = String(raw || "").trim();
+  if (!s) return s;
+  const n = parseNum(s);
+  if (!n && n !== 0) return s;
+  if (!/\d/.test(s)) return s;
+  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 };
 
 /* ================= STOCKAGE ================= */
@@ -152,8 +188,8 @@ async function sDel(key) {
   try { await window.storage.delete(key, true); } catch {}
 }
 
-/* Fichiers (base64) — limite ~3,5 Mo par fichier */
-const MAX_FILE = 3.5 * 1024 * 1024;
+/* Fichiers (base64) — limite 15 Mo par fichier */
+const MAX_FILE = 15 * 1024 * 1024;
 function readFileB64(file) {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -163,7 +199,7 @@ function readFileB64(file) {
   });
 }
 async function storeFile(file) {
-  if (file.size > MAX_FILE) throw new Error(`« ${file.name} » dépasse 3,5 Mo. Compressez le fichier avant de l'importer.`);
+  if (file.size > MAX_FILE) throw new Error(`« ${file.name} » dépasse 15 Mo. Compressez le fichier avant de l'importer.`);
   const data = await readFileB64(file);
   const id = uid();
   await sSet(`crm-file-${id}`, { name: file.name, type: file.type || "application/octet-stream", data });
@@ -331,6 +367,7 @@ export default function App() {
   const [prospection, setProspection] = useState([]);   // fiches d'appels / RDV prospection
   const [objectifs, setObjectifs] = useState({});       // { "2026-07": { userId: { contrats, volume } } }
   const [trash, setTrash] = useState([]);               // corbeille (fiches supprimées, 30 jours)
+  const [backupModal, setBackupModal] = useState(null); // fenêtre export/import par copier-coller
 
   /* ---- Chargement initial ---- */
   useEffect(() => {
@@ -447,45 +484,25 @@ export default function App() {
                 className="btn ghost sm" style={{ width: "100%", marginBottom: 6 }}
                 onClick={() => {
                   const payload = { version: 4, date: todayISO(), users, clients, sales, docs, bordereaux, prospection, objectifs, trash };
-                  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-                  const a = document.createElement("a");
-                  a.href = URL.createObjectURL(blob);
-                  a.download = `ELYON_CRM_sauvegarde_${todayISO()}.json`;
-                  a.click();
-                  URL.revokeObjectURL(a.href);
+                  const text = JSON.stringify(payload);
+                  /* Tentative de téléchargement (peut être bloqué selon l'environnement) */
+                  try {
+                    const blob = new Blob([text], { type: "application/json" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `ELYON_CRM_sauvegarde_${todayISO()}.json`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  } catch {}
+                  /* Et dans tous les cas : fenêtre de copie (fonctionne partout) */
+                  setBackupModal({ mode: "export", text });
                 }}
               >
                 💾 Exporter les données
               </button>
               <button
                 className="btn ghost sm" style={{ width: "100%" }}
-                onClick={() => {
-                  const input = document.createElement("input");
-                  input.type = "file";
-                  input.accept = "application/json";
-                  input.onchange = (ev) => {
-                    const file = ev.target.files[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      try {
-                        const p = JSON.parse(reader.result);
-                        if (!p.clients && !p.users) { alert("Fichier invalide."); return; }
-                        if (!confirm("Importer cette sauvegarde ? Les données actuelles seront remplacées.")) return;
-                        if (p.users) saveUsers(p.users);
-                        if (p.clients) saveClients(p.clients);
-                        if (p.sales) saveSales(p.sales);
-                        if (p.docs) saveDocs(p.docs);
-                        if (p.bordereaux) saveBordereaux(p.bordereaux);
-                        if (p.prospection) saveProspection(p.prospection);
-                        if (p.objectifs) saveObjectifs(p.objectifs);
-                        alert("Import terminé ✓");
-                      } catch { alert("Impossible de lire ce fichier."); }
-                    };
-                    reader.readAsText(file);
-                  };
-                  input.click();
-                }}
+                onClick={() => setBackupModal({ mode: "import", text: "" })}
               >
                 📥 Importer une sauvegarde
               </button>
@@ -498,6 +515,7 @@ export default function App() {
       </aside>
 
       <main className="main">
+        <RdvReminder prospection={prospection} me={me} />
         {page === "dash" && <Dashboard clients={clients} users={users} view={view} me={me} sales={sales} saveClients={saveClients} goClient={(c) => { setOpenClient(c.id); setPage("clients"); }} />}
         {page === "prospection" && (
           <ProspectionPage
@@ -521,13 +539,43 @@ export default function App() {
         )}
         {page === "ventes" && <SalesPage sales={sales} saveSales={saveSales} users={users} objectifs={objectifs} saveObjectifs={saveObjectifs} me={me} />}
         {page === "paye" && <PayePage view={view} sales={sales} bordereaux={bordereaux} saveBordereaux={saveBordereaux} />}
-        {page === "docs" && <DocsPage docs={docs} saveDocs={saveDocs} />}
+        {page === "docs" && <DocsPage docs={docs} saveDocs={saveDocs} toTrash={toTrash} />}
         {page === "equipe" && me.isManager && <TeamPage users={users} saveUsers={saveUsers} sales={sales} saveSales={saveSales} me={me} />}
         {page === "corbeille" && me.isManager && (
           <TrashPage
             trash={trash} saveTrash={saveTrash} users={users}
             restoreClient={(item) => { saveClients([...clients, item.data]); saveTrash(trash.filter((x) => x.id !== item.id)); }}
             restoreProspect={(item) => { saveProspection([...prospection, item.data]); saveTrash(trash.filter((x) => x.id !== item.id)); }}
+            restoreDoc={(item) => { saveDocs([...docs, item.data]); saveTrash(trash.filter((x) => x.id !== item.id)); }}
+            restoreFichier={(item) => {
+              const target = docs.find((x) => x.id === item.data.folderId);
+              if (target) saveDocs(docs.map((x) => (x.id === target.id ? { ...x, files: [...x.files, item.data.file] } : x)));
+              else saveDocs([...docs, { id: uid(), name: item.data.folderName || "Documents restaurés", files: [item.data.file] }]);
+              saveTrash(trash.filter((x) => x.id !== item.id));
+            }}
+          />
+        )}
+        {backupModal && (
+          <BackupModal
+            modal={backupModal}
+            close={() => setBackupModal(null)}
+            doImport={(text) => {
+              try {
+                const p = JSON.parse(text);
+                if (!p.clients && !p.users) { alert("Ce texte n'est pas une sauvegarde ELYON valide."); return; }
+                if (!confirm("Importer cette sauvegarde ? Les données actuelles seront remplacées.")) return;
+                if (p.users) saveUsers(p.users);
+                if (p.clients) saveClients(p.clients);
+                if (p.sales) saveSales(p.sales);
+                if (p.docs) saveDocs(p.docs);
+                if (p.bordereaux) saveBordereaux(p.bordereaux);
+                if (p.prospection) saveProspection(p.prospection);
+                if (p.objectifs) saveObjectifs(p.objectifs);
+                if (p.trash) saveTrash(p.trash);
+                alert("Import terminé ✓ Vos données sont restaurées.");
+                setBackupModal(null);
+              } catch { alert("Impossible de lire cette sauvegarde. Vérifiez que le texte est copié en entier."); }
+            }}
           />
         )}
       </main>
@@ -619,6 +667,7 @@ function Login({ users, onLogin, onSetPassword }) {
 
 /* ================= TABLEAU DE BORD ================= */
 function Dashboard({ clients: allClients, users, view, me, sales, saveClients, goClient }) {
+  const [showContrats, setShowContrats] = useState(false);
   /* Cloisonnement : un commercial ne voit que ses clients.
      Le manager voit tout depuis son espace, ou le portefeuille du conseiller consulté. */
   const clients = useMemo(() => {
@@ -669,6 +718,7 @@ function Dashboard({ clients: allClients, users, view, me, sales, saveClients, g
           <h1>Tableau de bord</h1>
           <div className="sub">Vue d'ensemble du cabinet · espace de {view.prenom} {view.nom}</div>
         </div>
+        <button className="btn gold" onClick={() => setShowContrats(true)}>📄 Contrats signés du mois</button>
       </div>
 
       <div className="kpis" style={{ marginBottom: 20 }}>
@@ -720,6 +770,59 @@ function Dashboard({ clients: allClients, users, view, me, sales, saveClients, g
       </div>
 
       <Leaderboard sales={sales} users={users} />
+
+      {showContrats && <ContratsModal sales={sales} users={users} me={me} onClose={() => setShowContrats(false)} />}
+    </div>
+  );
+}
+
+/* ================= LISTE DES CONTRATS SIGNÉS (modal) ================= */
+function ContratsModal({ sales, users, me, onClose }) {
+  const months = Object.keys(sales).sort();
+  const [month, setMonth] = useState(months[months.length - 1]);
+  const md = sales[month] || {};
+  const visibleUsers = me.isManager ? users : users.filter((u) => u.id === me.id);
+  const rows = [];
+  visibleUsers.forEach((u) => {
+    (((md[u.id] || {}).rows) || []).forEach((r) => {
+      if ((r.nom || "").trim() && r.statut !== "Annulé" && !r.mirrorOf) rows.push({ ...r, commercial: u.prenom });
+    });
+  });
+  rows.sort((a, b) => (b.dateCreation || "").localeCompare(a.dateCreation || ""));
+  const totV = rows.reduce((s, r) => s + parseNum(r.volume), 0);
+
+  return (
+    <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 760, maxHeight: "85vh", overflowY: "auto" }}>
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+          <h2>📄 Contrats signés — {rows.length} contrat(s) · {fmtEUR(totV)}</h2>
+          <select className="sel" style={{ width: 170 }} value={month} onChange={(e) => setMonth(e.target.value)}>
+            {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+          </select>
+        </div>
+        <table className="t">
+          <thead>
+            <tr>{me.isManager && <th>Commercial</th>}<th>Date</th><th>Client</th><th>Type</th><th>Compagnie</th><th>Volume</th><th>Statut</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className={r.statut === "Payé" ? "paye" : ""}>
+                {me.isManager && <td style={{ fontSize: 12.5 }}>{r.commercial}</td>}
+                <td style={{ fontSize: 12.5 }}>{fmtDate(r.dateCreation)}</td>
+                <td><b>{r.nom}</b></td>
+                <td style={{ fontSize: 12.5 }}>{r.type}</td>
+                <td style={{ fontSize: 12.5 }}>{r.compagnie}</td>
+                <td style={{ fontSize: 12.5 }}>{r.volume}</td>
+                <td><span className={"badge " + (r.statut === "Payé" ? "b-navy" : "b-grey")}>{r.statut}</span></td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={7} style={{ color: "#8593a8", padding: 16 }}>Aucun contrat sur {monthLabel(month)}.</td></tr>}
+          </tbody>
+        </table>
+        <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
+          <button className="btn ghost" onClick={onClose}>Fermer</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1212,41 +1315,61 @@ function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me }) {
       <div className="card" style={{ marginBottom: 18 }}>
         <h2 style={{ fontSize: 16, marginBottom: 12 }}>🎯 Objectifs — {monthLabel(month)}</h2>
         {!objectifs[month] && <div style={{ color: "#8593a8", fontSize: 13 }}>Aucun objectif défini pour ce mois{me.isManager ? " — cliquez sur « Définir les objectifs »." : "."}</div>}
-        {objectifs[month] && (
-          <div className="grid" style={{ gridTemplateColumns: `repeat(${Math.min(users.length, 3)}, 1fr)` }}>
-            {users.map((u) => {
-              const obj = (objectifs[month] || {})[u.id] || {};
-              const objC = parseNum(obj.contrats), objV = parseNum(obj.volume);
-              if (!objC && !objV) return null;
-              const rows = (((sales[month] || {})[u.id] || {}).rows || []).filter((r) => (r.nom || "").trim() && r.statut !== "Annulé");
-              const gotC = rows.length;
-              const gotV = rows.reduce((s, r) => s + parseNum(r.volume), 0);
-              const pctC = objC ? Math.min(100, Math.round((gotC / objC) * 100)) : null;
-              const pctV = objV ? Math.min(100, Math.round((gotV / objV) * 100)) : null;
-              return (
-                <div key={u.id} style={{ padding: "4px 2px" }}>
-                  <b style={{ fontSize: 14 }}>{u.prenom} {u.nom}</b>
-                  {pctC !== null && (
-                    <div style={{ marginTop: 6 }}>
-                      <div style={{ fontSize: 12, color: "#5b6b82" }}>Contrats : {gotC} / {objC} {pctC >= 100 && "✅"}</div>
-                      <div style={{ height: 7, background: "#eef1f6", borderRadius: 4, marginTop: 3, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${pctC}%`, background: pctC >= 100 ? "#1b7a3d" : GOLD, borderRadius: 4 }} />
-                      </div>
-                    </div>
-                  )}
-                  {pctV !== null && (
-                    <div style={{ marginTop: 6 }}>
-                      <div style={{ fontSize: 12, color: "#5b6b82" }}>Volume : {fmtEUR(gotV)} / {fmtEUR(objV)} {pctV >= 100 && "✅"}</div>
-                      <div style={{ height: 7, background: "#eef1f6", borderRadius: 4, marginTop: 3, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${pctV}%`, background: pctV >= 100 ? "#1b7a3d" : NAVY2, borderRadius: 4 }} />
-                      </div>
-                    </div>
-                  )}
+        {objectifs[month] && (() => {
+          /* Les lignes recopiées automatiquement (mirrorOf) ne comptent PAS dans les objectifs :
+             seuls les contrats réellement saisis par chacun sont comptabilisés. */
+          const ownRows = (uid2) => (((sales[month] || {})[uid2] || {}).rows || [])
+            .filter((r) => (r.nom || "").trim() && r.statut !== "Annulé" && !r.mirrorOf);
+          const Bar = ({ label, got, obj, money }) => {
+            const pct = obj ? Math.min(100, Math.round((got / obj) * 100)) : null;
+            if (pct === null) return null;
+            return (
+              <div style={{ marginTop: 6 }}>
+                <div style={{ fontSize: 12, color: "#5b6b82" }}>{label} : {money ? fmtEUR(got) : got} / {money ? fmtEUR(obj) : obj} {pct >= 100 && "✅"}</div>
+                <div style={{ height: 7, background: "#eef1f6", borderRadius: 4, marginTop: 3, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: pct >= 100 ? "#1b7a3d" : money ? NAVY2 : GOLD, borderRadius: 4 }} />
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            );
+          };
+
+          const objEq = (objectifs[month] || {}).equipe || {};
+          const objEqC = parseNum(objEq.contrats), objEqV = parseNum(objEq.volume);
+          const totC = users.reduce((s, u) => s + ownRows(u.id).length, 0);
+          const totV = users.reduce((s, u) => s + ownRows(u.id).reduce((x, r) => x + parseNum(r.volume), 0), 0);
+
+          return (
+            <>
+              {(objEqC > 0 || objEqV > 0) && (
+                <div style={{ background: "#fdf9f0", border: `1px solid ${GOLD}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
+                  <b style={{ fontSize: 14, color: "#7a5c17" }}>🏆 Objectif général de l'équipe</b>
+                  {objEqC > 0 && <Bar label={`Contrats équipe`} got={totC} obj={objEqC} />}
+                  {objEqV > 0 && <Bar label={`Volume équipe`} got={totV} obj={objEqV} money />}
+                </div>
+              )}
+              <div className="grid" style={{ gridTemplateColumns: `repeat(${Math.min(users.length, 3)}, 1fr)` }}>
+                {users.map((u) => {
+                  const obj = (objectifs[month] || {})[u.id] || {};
+                  const objC = parseNum(obj.contrats), objV = parseNum(obj.volume);
+                  if (!objC && !objV) return null;
+                  const rows = ownRows(u.id);
+                  const gotC = rows.length;
+                  const gotV = rows.reduce((s, r) => s + parseNum(r.volume), 0);
+                  return (
+                    <div key={u.id} style={{ padding: "4px 2px" }}>
+                      <b style={{ fontSize: 14 }}>{u.prenom} {u.nom}</b>
+                      {objC > 0 && <Bar label="Contrats" got={gotC} obj={objC} />}
+                      {objV > 0 && <Bar label="Volume" got={gotV} obj={objV} money />}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 11.5, color: "#8593a8", marginTop: 10 }}>
+                ℹ️ Les lignes recopiées automatiquement depuis les tableaux des commerciaux ne comptent pas dans les objectifs — seuls les contrats saisis par chacun sont comptabilisés.
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {showObj && (
@@ -1314,8 +1437,8 @@ function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me }) {
                     <td><input value={r.ref} onChange={(e) => updateCell(u.id, r.id, "ref", e.target.value)} /></td>
                     <td><input value={r.commentaire} onChange={(e) => updateCell(u.id, r.id, "commentaire", e.target.value)} /></td>
                     <td><input value={r.apporteur} onChange={(e) => updateCell(u.id, r.id, "apporteur", e.target.value)} /></td>
-                    <td><input value={r.volume} onChange={(e) => updateCell(u.id, r.id, "volume", e.target.value)} placeholder="€" /></td>
-                    <td><input value={r.remuneration} onChange={(e) => updateCell(u.id, r.id, "remuneration", e.target.value)} placeholder="€" /></td>
+                    <td><input value={r.volume} onChange={(e) => updateCell(u.id, r.id, "volume", e.target.value)} onBlur={(e) => { const f = autoEUR(e.target.value); if (f !== e.target.value) updateCell(u.id, r.id, "volume", f); }} placeholder="€" /></td>
+                    <td><input value={r.remuneration} onChange={(e) => updateCell(u.id, r.id, "remuneration", e.target.value)} onBlur={(e) => { const f = autoEUR(e.target.value); if (f !== e.target.value) updateCell(u.id, r.id, "remuneration", f); }} placeholder="€" /></td>
                     <td>
                       <select value={r.statut} onChange={(e) => updateCell(u.id, r.id, "statut", e.target.value)}>
                         {STATUTS.map((s) => <option key={s}>{s}</option>)}
@@ -1425,7 +1548,7 @@ function PayePage({ view, sales, bordereaux, saveBordereaux }) {
 }
 
 /* ================= DOCUMENTS ================= */
-function DocsPage({ docs, saveDocs }) {
+function DocsPage({ docs, saveDocs, toTrash }) {
   const [newName, setNewName] = useState("");
   const addFolder = () => {
     if (!newName.trim()) return;
@@ -1451,12 +1574,12 @@ function DocsPage({ docs, saveDocs }) {
               <h2 style={{ fontSize: 16 }}>📁 {d.name} <span style={{ color: "#8593a8", fontSize: 13, fontWeight: 400 }}>· {d.files.length} fichier(s)</span></h2>
               <div className="row">
                 <FilePicker label="+ Importer des fichiers" multiple onFiles={(files) => saveDocs(docs.map((x) => (x.id === d.id ? { ...x, files: [...x.files, ...files] } : x)))} />
-                <button className="btn danger sm" onClick={() => { if (confirm("Supprimer ce dossier et tous ses fichiers ?")) { d.files.forEach((f) => sDel(`crm-file-${f.id}`)); saveDocs(docs.filter((x) => x.id !== d.id)); } }}>Supprimer</button>
+                <button className="btn danger sm" onClick={() => { if (confirm("Mettre ce dossier et ses fichiers à la corbeille ? (restaurable pendant 30 jours)")) { toTrash("doc", d); saveDocs(docs.filter((x) => x.id !== d.id)); } }}>Supprimer</button>
               </div>
             </div>
             <FileList
               files={d.files}
-              onDelete={(f) => { sDel(`crm-file-${f.id}`); saveDocs(docs.map((x) => (x.id === d.id ? { ...x, files: x.files.filter((y) => y.id !== f.id) } : x))); }}
+              onDelete={(f) => { if (!confirm(`Mettre « ${f.name} » à la corbeille ?`)) return; toTrash("fichier", { file: f, folderId: d.id, folderName: d.name }); saveDocs(docs.map((x) => (x.id === d.id ? { ...x, files: x.files.filter((y) => y.id !== f.id) } : x))); }}
             />
           </div>
         ))}
@@ -1545,6 +1668,7 @@ function ObjectifsForm({ users, month, initial, onSave, onClose }) {
   const [f, setF] = useState(() => {
     const base = {};
     users.forEach((u) => { base[u.id] = { contrats: (initial[u.id] || {}).contrats || "", volume: (initial[u.id] || {}).volume || "" }; });
+    base.equipe = { contrats: (initial.equipe || {}).contrats || "", volume: (initial.equipe || {}).volume || "" };
     return base;
   });
   const set = (uid2, k, v) => setF({ ...f, [uid2]: { ...f[uid2], [k]: v } });
@@ -1555,6 +1679,15 @@ function ObjectifsForm({ users, month, initial, onSave, onClose }) {
         <p style={{ fontSize: 13, color: "#5b6b82", marginBottom: 14 }}>
           Laissez vide pour ne pas fixer d'objectif. Les jauges se remplissent automatiquement avec les contrats saisis dans le tableau des ventes.
         </p>
+        <div className="row" style={{ marginBottom: 14, alignItems: "flex-end", background: "#fdf9f0", borderRadius: 8, padding: "8px 10px" }}>
+          <div style={{ width: 150, fontSize: 14, fontWeight: 700, paddingBottom: 8, color: "#7a5c17" }}>🏆 ÉQUIPE (global)</div>
+          <Field label="Contrats">
+            <input className="in" style={{ width: 110 }} value={(f.equipe || {}).contrats || ""} onChange={(e) => setF({ ...f, equipe: { ...(f.equipe || {}), contrats: e.target.value } })} placeholder="ex : 40" />
+          </Field>
+          <Field label="Volume (€)">
+            <input className="in" style={{ width: 140 }} value={(f.equipe || {}).volume || ""} onChange={(e) => setF({ ...f, equipe: { ...(f.equipe || {}), volume: e.target.value } })} placeholder="ex : 100 000" />
+          </Field>
+        </div>
         {users.map((u) => (
           <div key={u.id} className="row" style={{ marginBottom: 12, alignItems: "flex-end" }}>
             <div style={{ width: 150, fontSize: 14, fontWeight: 600, paddingBottom: 8 }}>{u.prenom} {u.nom}</div>
@@ -1688,6 +1821,18 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
     if (confirm("Fiche client créée ✓ Voulez-vous l'ouvrir maintenant ?")) goClient(newClient.id);
   };
 
+  /* Annulation d'une conversion : le client repart en corbeille, le prospect redevient convertible */
+  const unconvert = (entry) => {
+    if (!confirm("Annuler la conversion ? La fiche client créée sera mise à la corbeille (restaurable 30 jours) et le prospect restera dans la prospection.")) return;
+    const c = clients.find((x) => x.id === entry.convertedClientId);
+    if (c) {
+      toTrash("client", c);
+      saveClients(clients.filter((x) => x.id !== c.id));
+    }
+    saveProspection(prospection.map((p) => (p.id === entry.id ? { ...p, convertedClientId: null } : p)));
+    setShowForm(false); setEditEntry(null);
+  };
+
   const exportCSV = () => {
     downloadCSV(
       `ELYON_prospection_${todayISO()}.csv`,
@@ -1711,17 +1856,27 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
         </div>
       </div>
 
-      {/* ---- KPI ---- */}
-      <div className="kpis" style={{ marginBottom: 14 }}>
-        <div className="kpi"><div className="n">{S.appels}</div><div className="l">Appels enregistrés</div></div>
-        <div className="kpi"><div className="n">{S.txReponse}%</div><div className="l">Taux de réponse ({S.repondus}/{S.appels})</div></div>
-        <div className="kpi"><div className="n">{S.rdvPris}</div><div className="l">RDV pris</div></div>
-        <div className="kpi"><div className="n">{S.txPrise}%</div><div className="l">Taux de prise de RDV*</div></div>
-        <div className="kpi"><div className="n">{S.txHonore}%</div><div className="l">RDV honorés ({S.rdvHonores}/{S.rdvPris})</div></div>
-        <div className="kpi"><div className="n">{S.signes}</div><div className="l">Signés</div></div>
-        <div className="kpi"><div className="n">{S.txTransfo}%</div><div className="l">Transformation RDV → signé</div></div>
-        <div className="kpi"><div className="n">{S.txGlobal}%</div><div className="l">Transformation globale</div></div>
-      </div>
+      {/* ---- KPI (cliquables : un clic filtre le tableau) ---- */}
+      {(() => {
+        const goto = (statut) => { setStatutFilter(statut); setViewMode("table"); };
+        const K = ({ n, l, statut }) => (
+          <div className="kpi" onClick={() => goto(statut)} style={{ cursor: "pointer" }} title="Cliquer pour afficher le détail">
+            <div className="n">{n}</div><div className="l">{l}</div>
+          </div>
+        );
+        return (
+          <div className="kpis" style={{ marginBottom: 14 }}>
+            <K n={S.appels} l="Appels enregistrés" statut="all" />
+            <K n={`${S.txReponse}%`} l={`Taux de réponse (${S.repondus}/${S.appels})`} statut="all" />
+            <K n={S.rdvPris} l="RDV pris" statut="RDV pris" />
+            <K n={`${S.txPrise}%`} l="Taux de prise de RDV*" statut="RDV pris" />
+            <K n={`${S.txHonore}%`} l={`RDV honorés (${S.rdvHonores}/${S.rdvPris})`} statut="RDV honoré" />
+            <K n={S.signes} l="Signés" statut="Signé" />
+            <K n={`${S.txTransfo}%`} l="Transformation RDV → signé" statut="Signé" />
+            <K n={`${S.txGlobal}%`} l="Transformation globale" statut="all" />
+          </div>
+        );
+      })()}
       <div className="row" style={{ marginBottom: 14, fontSize: 12, color: "#8593a8" }}>
         <span>* RDV pris / appels répondus</span>
         <span>· Qualité moyenne de prise de RDV : <b style={{ color: NAVY }}>{S.qualiteMoy}/5</b></span>
@@ -1743,7 +1898,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
       {/* ---- Choix de la vue ---- */}
       <div className="row" style={{ marginBottom: 14, flexWrap: "wrap" }}>
         <div className="row" style={{ gap: 0, border: "1px solid #cdd6e2", borderRadius: 8, overflow: "hidden" }}>
-          {[["table", "📋 Tableau"], ["semaine", "📅 Semaine"], ["mois", "🗓️ Mois"]].map(([k, l]) => (
+          {[["table", "📋 Tableau"], ["jour", "📆 Jour"], ["semaine", "📅 Semaine"], ["mois", "🗓️ Mois"]].map(([k, l]) => (
             <button
               key={k}
               onClick={() => setViewMode(k)}
@@ -1776,7 +1931,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
 
       {viewMode !== "table" && (
         <RdvCalendar
-          entries={scoped.filter((p) => p.dateRdv)}
+          entries={(me.isManager && ownerFilter !== "all" ? mine.filter((p) => p.ownerId === ownerFilter) : mine).filter((p) => p.dateRdv)}
           mode={viewMode}
           users={users} me={me}
           onOpen={(p) => { setEditEntry(p); setShowForm(true); }}
@@ -1804,7 +1959,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
           </thead>
           <tbody>
             {scoped.map((p) => (
-              <tr key={p.id}>
+              <tr key={p.id} style={PROSPECTION_ROW_BG[p.statut] ? { background: PROSPECTION_ROW_BG[p.statut] } : undefined}>
                 {me.isManager && <td style={{ fontSize: 12.5 }}>{ownerName(p)}</td>}
                 <td><b>{(p.nom || "").toUpperCase()} {p.prenom}</b>
                   {p.ville && <div style={{ fontSize: 11.5, color: "#8593a8" }}>{p.ville}</div>}
@@ -1842,13 +1997,14 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
           onSave={save}
           onDelete={editEntry ? () => remove(editEntry) : null}
           onConvert={editEntry && !editEntry.convertedClientId ? () => convert(editEntry) : null}
+          onUnconvert={editEntry && editEntry.convertedClientId ? () => unconvert(editEntry) : null}
         />
       )}
     </div>
   );
 }
 
-function ProspectForm({ initial, me, users, onSave, onClose, onDelete, onConvert }) {
+function ProspectForm({ initial, me, users, onSave, onClose, onDelete, onConvert, onUnconvert }) {
   const [f, setF] = useState(initial || emptyProspect(me.id));
   const set = (k, v) => setF({ ...f, [k]: v });
   const showRdvFields = ["RDV pris", "RDV honoré", "RDV annulé", "RDV reporté", "Proposition envoyée", "Signé", "Perdu"].includes(f.statut);
@@ -1917,6 +2073,7 @@ function ProspectForm({ initial, me, users, onSave, onClose, onDelete, onConvert
             {onDelete && <button className="btn danger" onClick={onDelete}>Supprimer</button>}
             {onConvert && <button className="btn ghost" style={{ borderColor: GOLD, color: "#7a5c17" }} onClick={onConvert}>👥 Convertir en client</button>}
             {initial && initial.convertedClientId && <span className="badge b-gold" style={{ alignSelf: "center" }}>✓ Déjà converti en client</span>}
+            {onUnconvert && <button className="btn ghost sm" style={{ borderColor: "#B3261E", color: "#B3261E", alignSelf: "center" }} onClick={onUnconvert}>↩️ Annuler la conversion</button>}
           </div>
           <div className="row">
             <button className="btn ghost" onClick={onClose}>Annuler</button>
@@ -2080,6 +2237,14 @@ function HistoriqueCard({ client, update, me, users }) {
 }
 
 /* ================= CALENDRIER DES RDV PROSPECTION ================= */
+/* Couleurs par commercial : Arzou vert foncé/vert d'eau, Simon vert clair, Quentin bleu clair, Signé = or */
+const RDV_OWNER_STYLE = {
+  arzou: { bg: "#d4ede6", border: "#1b6e5a" },
+  simon: { bg: "#e2f6df", border: "#3f9e4d" },
+  quentin: { bg: "#dceafa", border: "#1d6fb8" },
+};
+const RDV_SIGNED_STYLE = { bg: "#f7e9c4", border: "#C9A24B" };
+
 function RdvCalendar({ entries, mode, users, me, onOpen }) {
   const [ref, setRef] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
 
@@ -2087,46 +2252,72 @@ function RdvCalendar({ entries, mode, users, me, onOpen }) {
   const startOfWeek = (d) => { const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0); return x; };
   const today = isoOf(new Date());
   const DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+  const DAYS_FULL = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
   const byDate = {};
   entries.forEach((p) => { (byDate[p.dateRdv] = byDate[p.dateRdv] || []).push(p); });
   Object.values(byDate).forEach((list) => list.sort((a, b) => (a.heureRdv || "").localeCompare(b.heureRdv || "")));
 
-  const initials = (p) => {
+  const ownerName = (p) => {
     const u = users.find((x) => x.id === p.ownerId);
-    return u ? u.prenom[0] + (u.nom ? u.nom[0] : "") : "?";
+    return u ? u.prenom : "?";
   };
+  const pillStyle = (p) => (p.statut === "Signé" ? RDV_SIGNED_STYLE : (RDV_OWNER_STYLE[p.ownerId] || { bg: "#f2f5fa", border: NAVY2 }));
 
   const nav = (dir) => {
     const d = new Date(ref);
-    if (mode === "semaine") d.setDate(d.getDate() + dir * 7);
+    if (mode === "jour") d.setDate(d.getDate() + dir);
+    else if (mode === "semaine") d.setDate(d.getDate() + dir * 7);
     else d.setMonth(d.getMonth() + dir);
     setRef(d);
   };
 
-  const EventPill = ({ p }) => (
-    <div
-      onClick={() => onOpen(p)}
-      title={`${p.nom} ${p.prenom || ""} · ${p.statut}${p.commentaire ? " · " + p.commentaire : ""}`}
-      style={{
-        fontSize: 11.5, padding: "3px 6px", borderRadius: 6, marginBottom: 3, cursor: "pointer",
-        background: "#f2f5fa", borderLeft: `3px solid ${PROSPECTION_COLORS[p.statut] || NAVY2}`,
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}
-    >
-      {p.heureRdv && <b style={{ color: NAVY }}>{p.heureRdv}</b>} {(p.nom || "").toUpperCase()} {p.prenom || ""}
-      {me.isManager && <span style={{ color: "#8593a8" }}> · {initials(p)}</span>}
-    </div>
-  );
+  const EventPill = ({ p, big }) => {
+    const st = pillStyle(p);
+    return (
+      <div
+        onClick={() => onOpen(p)}
+        title={`${p.nom} ${p.prenom || ""} · ${p.statut} · pris par ${ownerName(p)}${p.commentaire ? " · " + p.commentaire : ""}`}
+        style={{
+          fontSize: big ? 13.5 : 11.5, padding: big ? "10px 12px" : "3px 6px", borderRadius: big ? 10 : 6,
+          marginBottom: big ? 8 : 3, cursor: "pointer",
+          background: st.bg, borderLeft: `${big ? 4 : 3}px solid ${st.border}`,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: big ? "normal" : "nowrap",
+        }}
+      >
+        {p.heureRdv && <b style={{ color: NAVY }}>{p.heureRdv}</b>} {(p.nom || "").toUpperCase()} {p.prenom || ""}
+        {p.statut === "Signé" && " 🏆"}
+        <span style={{ color: "#5b6b82" }}> · {ownerName(p)}</span>
+        {big && (
+          <div style={{ fontSize: 12, color: "#5b6b82", marginTop: 3 }}>
+            {p.profession || "—"} {p.telephone && `· 📞 ${p.telephone}`} {p.ville && `· ${p.ville}`}
+            {p.commentaire && <div style={{ marginTop: 2 }}>💬 {p.commentaire}</div>}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   /* ---- En-tête de navigation ---- */
   let label;
-  if (mode === "semaine") {
+  if (mode === "jour") {
+    label = `${DAYS_FULL[(ref.getDay() + 6) % 7]} ${fmtDate(isoOf(ref))}`;
+  } else if (mode === "semaine") {
     const s = startOfWeek(ref); const e = new Date(s); e.setDate(e.getDate() + 6);
     label = `Semaine du ${fmtDate(isoOf(s))} au ${fmtDate(isoOf(e))}`;
   } else {
     label = monthLabel(`${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}`);
   }
+
+  const legend = (
+    <div className="row" style={{ marginTop: 12, flexWrap: "wrap", fontSize: 11.5, color: "#5b6b82" }}>
+      {users.map((u) => {
+        const st = RDV_OWNER_STYLE[u.id] || { bg: "#f2f5fa", border: NAVY2 };
+        return <span key={u.id} style={{ background: st.bg, borderLeft: `3px solid ${st.border}`, padding: "2px 8px", borderRadius: 4 }}>{u.prenom}</span>;
+      })}
+      <span style={{ background: RDV_SIGNED_STYLE.bg, borderLeft: `3px solid ${RDV_SIGNED_STYLE.border}`, padding: "2px 8px", borderRadius: 4 }}>🏆 Signé</span>
+    </div>
+  );
 
   return (
     <div className="card">
@@ -2138,6 +2329,16 @@ function RdvCalendar({ entries, mode, users, me, onOpen }) {
           <button className="btn ghost sm" onClick={() => nav(1)}>▶</button>
         </div>
       </div>
+
+      {mode === "jour" && (() => {
+        const list = byDate[isoOf(ref)] || [];
+        return (
+          <div>
+            {list.length === 0 && <div style={{ color: "#8593a8", fontSize: 13.5 }}>Aucun rendez-vous ce jour-là.</div>}
+            {list.map((p) => <EventPill key={p.id} p={p} big />)}
+          </div>
+        );
+      })()}
 
       {mode === "semaine" && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
@@ -2195,12 +2396,13 @@ function RdvCalendar({ entries, mode, users, me, onOpen }) {
           Aucun RDV planifié : renseignez la « date du RDV » sur vos fiches de prospection pour les voir apparaître ici.
         </div>
       )}
+      {legend}
     </div>
   );
 }
 
 /* ================= CORBEILLE (manager) ================= */
-function TrashPage({ trash, saveTrash, users, restoreClient, restoreProspect }) {
+function TrashPage({ trash, saveTrash, users, restoreClient, restoreProspect, restoreDoc, restoreFichier }) {
   const items = trash.slice().sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
   const who = (id) => {
     const u = users.find((x) => x.id === id);
@@ -2208,12 +2410,28 @@ function TrashPage({ trash, saveTrash, users, restoreClient, restoreProspect }) 
   };
   const daysLeft = (deletedAt) => Math.max(0, 30 - Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000));
 
+  const purgeFiles = (item) => {
+    if (item.kind === "client") (item.data.contrats || []).forEach((k) => (k.fichiers || []).forEach((f) => sDel(`crm-file-${f.id}`)));
+    if (item.kind === "doc") (item.data.files || []).forEach((f) => sDel(`crm-file-${f.id}`));
+    if (item.kind === "fichier") sDel(`crm-file-${item.data.file.id}`);
+  };
   const purgeItem = (item) => {
     if (!confirm("Supprimer DÉFINITIVEMENT ? Cette action est irréversible.")) return;
-    if (item.kind === "client") {
-      (item.data.contrats || []).forEach((k) => (k.fichiers || []).forEach((f) => sDel(`crm-file-${f.id}`)));
-    }
+    purgeFiles(item);
     saveTrash(trash.filter((x) => x.id !== item.id));
+  };
+  const restore = (item) => {
+    if (item.kind === "client") restoreClient(item);
+    else if (item.kind === "prospect") restoreProspect(item);
+    else if (item.kind === "doc") restoreDoc(item);
+    else if (item.kind === "fichier") restoreFichier(item);
+  };
+  const iconOf = { client: "👥", prospect: "🎯", doc: "📁", fichier: "📄" };
+  const labelOf = (item) => {
+    if (item.kind === "client") return `${(item.data.nom || "").toUpperCase()} ${item.data.prenom || ""} — fiche client · ${(item.data.contrats || []).length} contrat(s)`;
+    if (item.kind === "prospect") return `${(item.data.nom || "").toUpperCase()} ${item.data.prenom || ""} — prospection · ${item.data.statut}`;
+    if (item.kind === "doc") return `${item.data.name} — dossier · ${(item.data.files || []).length} fichier(s)`;
+    return `${item.data.file.name} — fichier (dossier « ${item.data.folderName} »)`;
   };
 
   return (
@@ -2224,36 +2442,140 @@ function TrashPage({ trash, saveTrash, users, restoreClient, restoreProspect }) 
           <div className="sub">{items.length} élément(s) — suppression automatique et définitive après 30 jours</div>
         </div>
         {items.length > 0 && (
-          <button className="btn danger" onClick={() => { if (confirm("Vider toute la corbeille définitivement ?")) { items.forEach((it) => { if (it.kind === "client") (it.data.contrats || []).forEach((k) => (k.fichiers || []).forEach((f) => sDel(`crm-file-${f.id}`))); }); saveTrash([]); } }}>
-            Vider la corbeille
+          <button className="btn danger" onClick={() => { if (confirm("Vider toute la corbeille définitivement ? Cette action est irréversible.")) { items.forEach(purgeFiles); saveTrash([]); } }}>
+            🗑️ Vider la corbeille
           </button>
         )}
       </div>
 
-      {items.length === 0 && <div className="card" style={{ color: "#8593a8" }}>La corbeille est vide. Les fiches clients et fiches de prospection supprimées arriveront ici.</div>}
+      {items.length === 0 && <div className="card" style={{ color: "#8593a8" }}>La corbeille est vide. Les fiches clients, fiches de prospection, dossiers et fichiers supprimés arriveront ici.</div>}
 
       <div className="grid">
         {items.map((item) => (
           <div className="clientcard" key={item.id} style={{ cursor: "default" }}>
             <div>
-              <b style={{ fontSize: 14.5 }}>
-                {item.kind === "client" ? "👥" : "🎯"} {(item.data.nom || "").toUpperCase()} {item.data.prenom || ""}
-              </b>
+              <b style={{ fontSize: 14.5 }}>{iconOf[item.kind] || "🗑️"} {labelOf(item)}</b>
               <div style={{ fontSize: 12, color: "#5b6b82" }}>
-                {item.kind === "client" ? `Fiche client · ${(item.data.contrats || []).length} contrat(s)` : `Prospection · ${item.data.statut}`}
-                {" — supprimé le "}{fmtDate(item.deletedAt.slice(0, 10))} par {who(item.deletedBy)}
+                Supprimé le {fmtDate(item.deletedAt.slice(0, 10))} par {who(item.deletedBy)}
               </div>
               <div style={{ fontSize: 11.5, color: daysLeft(item.deletedAt) <= 7 ? "#B3261E" : "#8593a8" }}>
                 ⏳ {daysLeft(item.deletedAt)} jour(s) avant suppression définitive
               </div>
             </div>
             <div className="row">
-              <button className="btn gold sm" onClick={() => (item.kind === "client" ? restoreClient(item) : restoreProspect(item))}>↩️ Restaurer</button>
+              <button className="btn gold sm" onClick={() => restore(item)}>↩️ Restaurer</button>
               <button className="btn danger sm" onClick={() => purgeItem(item)}>✕</button>
             </div>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ================= SAUVEGARDE / RESTAURATION (copier-coller) ================= */
+function BackupModal({ modal, close, doImport }) {
+  const [text, setText] = useState(modal.text || "");
+  const [copied, setCopied] = useState(false);
+  const taRef = useRef(null);
+
+  const copyAll = async () => {
+    try {
+      await navigator.clipboard.writeText(modal.text);
+      setCopied(true);
+    } catch {
+      /* solution de repli si le presse-papiers est bloqué */
+      if (taRef.current) {
+        taRef.current.select();
+        try { document.execCommand("copy"); setCopied(true); } catch {}
+      }
+    }
+  };
+
+  return (
+    <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && close()}>
+      <div className="modal" style={{ maxWidth: 640 }}>
+        {modal.mode === "export" ? (
+          <>
+            <h2>💾 Votre sauvegarde</h2>
+            <p style={{ fontSize: 13, color: "#5b6b82", margin: "8px 0 12px" }}>
+              Si aucun fichier ne s'est téléchargé, utilisez le bouton ci-dessous : copiez le texte,
+              puis collez-le dans « 📥 Importer » de votre autre CRM, ou gardez-le dans un document en lieu sûr.
+            </p>
+            <button className="btn gold" style={{ width: "100%", marginBottom: 10 }} onClick={copyAll}>
+              {copied ? "✓ Copié dans le presse-papiers !" : "📋 Tout copier"}
+            </button>
+            <textarea
+              ref={taRef} className="ta" rows={8} readOnly value={modal.text}
+              onClick={(e) => e.target.select()}
+              style={{ fontSize: 11, fontFamily: "monospace", wordBreak: "break-all" }}
+            />
+          </>
+        ) : (
+          <>
+            <h2>📥 Restaurer une sauvegarde</h2>
+            <p style={{ fontSize: 13, color: "#5b6b82", margin: "8px 0 12px" }}>
+              Collez ici le texte de sauvegarde (obtenu via « 💾 Exporter » → 📋 Tout copier),
+              puis cliquez sur Importer. Les données actuelles seront remplacées.
+            </p>
+            <textarea
+              className="ta" rows={8} value={text} autoFocus
+              onChange={(e) => setText(e.target.value)}
+              placeholder='Collez la sauvegarde ici (commence par {"version":...)'
+              style={{ fontSize: 11, fontFamily: "monospace", wordBreak: "break-all" }}
+            />
+            <button className="btn gold" style={{ width: "100%", marginTop: 10 }} onClick={() => doImport(text)} disabled={!text.trim()}>
+              Importer cette sauvegarde
+            </button>
+          </>
+        )}
+        <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
+          <button className="btn ghost" onClick={close}>Fermer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= ALERTE RDV (10 minutes avant) ================= */
+function RdvReminder({ prospection, me }) {
+  const [now, setNow] = useState(() => new Date());
+  const [dismissed, setDismissed] = useState([]);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30000); // vérification toutes les 30 s
+    return () => clearInterval(t);
+  }, []);
+
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const soon = prospection.filter((p) => {
+    if (p.ownerId !== me.id || !p.dateRdv || !p.heureRdv) return false;
+    if (p.dateRdv !== todayIso) return false;
+    if (dismissed.includes(p.id)) return false;
+    const [h, m] = p.heureRdv.split(":").map(Number);
+    const rdv = new Date(now); rdv.setHours(h, m, 0, 0);
+    const diffMin = (rdv - now) / 60000;
+    return diffMin <= 10 && diffMin > -15; // de J-10 min jusqu'à 15 min après le début
+  });
+
+  if (soon.length === 0) return null;
+  return (
+    <div style={{ position: "sticky", top: 0, zIndex: 90, marginBottom: 16 }}>
+      {soon.map((p) => (
+        <div key={p.id} style={{
+          background: "#fdf3d7", border: `2px solid ${GOLD}`, borderRadius: 12,
+          padding: "12px 16px", marginBottom: 8, display: "flex", justifyContent: "space-between",
+          alignItems: "center", boxShadow: "0 6px 20px rgba(201,162,75,.25)",
+        }}>
+          <div>
+            <b style={{ color: "#7a5c17", fontSize: 15 }}>⏰ RDV imminent — {p.heureRdv}</b>
+            <div style={{ fontSize: 13.5, color: NAVY, marginTop: 2 }}>
+              {(p.nom || "").toUpperCase()} {p.prenom || ""} {p.profession && `· ${p.profession}`} {p.telephone && `· 📞 ${p.telephone}`}
+            </div>
+          </div>
+          <button className="btn ghost sm" onClick={() => setDismissed([...dismissed, p.id])}>✓ Vu</button>
+        </div>
+      ))}
     </div>
   );
 }
