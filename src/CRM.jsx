@@ -2,12 +2,55 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
+import * as XLSX from "xlsx";
 
 /* ================= CONSTANTES ================= */
 const NAVY = "#0B2545";
 const NAVY2 = "#13315C";
 const GOLD = "#C9A24B";
 const LIGHT = "#F5F7FA";
+
+/* ---- Motifs de rendez-vous client ---- */
+const MOTIFS_RDV = [
+  "Faire un arbitrage",
+  "Réaliser un bilan patrimonial",
+  "Mettre à jour la situation personnelle et patrimoniale (EIC)",
+  "Définir ou revoir les objectifs patrimoniaux",
+  "Mettre en place un nouveau placement",
+  "Ouvrir un contrat (assurance-vie, PER, PEA, CTO…)",
+  "Effectuer un versement libre",
+  "Réaliser un rachat partiel ou total",
+  "Modifier la clause bénéficiaire d'une assurance-vie",
+  "Optimiser la fiscalité",
+  "Préparer la retraite",
+  "Préparer la transmission du patrimoine",
+  "Diversifier les investissements",
+  "Faire un point sur la performance des placements",
+  "Vérifier l'adéquation du portefeuille avec le profil de risque",
+  "Réaliser un suivi annuel et ajuster la stratégie patrimoniale",
+];
+
+/* ---- Fiche patrimoniale : les 10 questions ---- */
+const QUESTIONS_PATRIMONIALES = [
+  { id: "q1", icon: "🎯", q: "Quel est votre objectif patrimonial principal ?", type: "text", ph: "ex : préparer la retraite, réduire mes impôts, acheter un bien…" },
+  { id: "q2", icon: "👨‍👩‍👧", q: "Quelle est votre situation familiale et votre régime matrimonial ?", type: "text", ph: "ex : marié(e) communauté réduite aux acquêts, 2 enfants…" },
+  { id: "q3", icon: "💶", q: "Quels sont vos revenus et combien pouvez-vous épargner chaque mois ?", type: "text", ph: "ex : 4 500 € nets/mois, capacité d'épargne 500 €/mois" },
+  { id: "q4", icon: "🏠", q: "Quels sont les principaux éléments de votre patrimoine aujourd'hui ?", type: "text", ph: "ex : résidence principale 350 k€, livrets 30 k€, assurance vie 50 k€…" },
+  { id: "q5", icon: "🏦", q: "Avez-vous des crédits ou d'autres dettes en cours ?", type: "text", ph: "ex : crédit immobilier 900 €/mois jusqu'en 2038…" },
+  { id: "q6", icon: "🧾", q: "Quelle est votre situation fiscale (TMI, RFR, IFI) ?", type: "text", ph: "ex : TMI 30 %, RFR 62 000 €, non assujetti IFI" },
+  { id: "q7", icon: "⏳", q: "Dans combien de temps pensez-vous avoir besoin de cet argent ?", type: "select", options: ["Moins de 2 ans", "2 à 5 ans", "5 à 10 ans", "Plus de 10 ans", "Pas de besoin identifié"] },
+  { id: "q8", icon: "📉", q: "Comment réagiriez-vous face à une baisse temporaire de 20 % de votre investissement ?", type: "select", options: ["Je vendrais tout (profil prudent)", "Je m'inquiéterais mais j'attendrais (profil équilibré)", "Je renforcerais ma position (profil dynamique)"] },
+  { id: "q9", icon: "📈", q: "Avez-vous déjà investi sur des produits financiers ? Lesquels ?", type: "text", ph: "ex : assurance vie fonds euros, PEA, SCPI, crypto…" },
+  { id: "q10", icon: "🛡️", q: "Souhaitez-vous protéger un proche ou préparer la transmission de votre patrimoine ?", type: "text", ph: "ex : protéger mon conjoint, transmettre à mes enfants…" },
+];
+
+/* ---- Modèles d'e-mails par défaut (modifiables dans la Messagerie) ---- */
+const DEFAULT_MAIL_TEMPLATES = [
+  { id: "tpl-bilan", nom: "Invitation bilan annuel", sujet: "Votre bilan patrimonial annuel — ELYON & Associés", corps: "Bonjour,\n\nComme chaque année, je vous propose de faire un point ensemble sur votre situation patrimoniale : performance de vos contrats, adéquation avec vos objectifs et opportunités du moment.\n\nQuelles seraient vos disponibilités dans les deux prochaines semaines ?\n\nBien cordialement,\n\nELYON & Associés\n4 rue Largillière, 75016 Paris" },
+  { id: "tpl-per", nom: "Rappel plafond PER avant fin d'année", sujet: "Optimisez votre fiscalité avant le 31 décembre", corps: "Bonjour,\n\nLa fin d'année approche : c'est le moment de vérifier que vous avez utilisé au mieux votre plafond de déduction PER pour réduire votre impôt sur le revenu.\n\nJe peux réaliser cette vérification pour vous en quelques minutes — souhaitez-vous que je vous appelle ?\n\nBien cordialement,\n\nELYON & Associés" },
+  { id: "tpl-voeux", nom: "Vœux de nouvelle année", sujet: "Tous nos vœux pour cette nouvelle année", corps: "Bonjour,\n\nToute l'équipe d'ELYON & Associés vous présente ses meilleurs vœux pour cette nouvelle année : santé, réussite et sérénité dans vos projets.\n\nNous restons à vos côtés pour faire fructifier et protéger votre patrimoine.\n\nBien cordialement,\n\nELYON & Associés" },
+  { id: "tpl-relance", nom: "Relance document manquant", sujet: "Votre dossier — pièce manquante", corps: "Bonjour,\n\nPour finaliser votre dossier, il nous manque encore un document. Pourriez-vous nous le transmettre en réponse à cet e-mail ?\n\nMerci d'avance,\n\nELYON & Associés" },
+];
 
 const COMPANIES = {
   "PER": ["Abeille", "Generali", "MMA", "Malakoff Humanis", "Swiss Life", "Optimum Vie"],
@@ -367,14 +410,17 @@ export default function App() {
   const [prospection, setProspection] = useState([]);   // fiches d'appels / RDV prospection
   const [objectifs, setObjectifs] = useState({});       // { "2026-07": { userId: { contrats, volume } } }
   const [trash, setTrash] = useState([]);               // corbeille (fiches supprimées, 30 jours)
+  const [rdvClients, setRdvClients] = useState([]);     // rendez-vous clients (motifs patrimoniaux)
+  const [mailTpl, setMailTpl] = useState([]);           // modèles d'e-mails (messagerie)
   const [backupModal, setBackupModal] = useState(null); // fenêtre export/import par copier-coller
 
   /* ---- Chargement initial ---- */
   useEffect(() => {
     (async () => {
-      const [u, c, s, d, b, p, o, t] = await Promise.all([
+      const [u, c, s, d, b, p, o, t, rc, mt] = await Promise.all([
         sGet("crm-users"), sGet("crm-clients"), sGet("crm-sales"), sGet("crm-docs"), sGet("crm-bordereaux"),
         sGet("crm-prospection"), sGet("crm-objectifs"), sGet("crm-trash"),
+        sGet("crm-rdv-clients"), sGet("crm-mailtpl"),
       ]);
       const loadedUsers = u && u.length ? u : DEFAULT_USERS;
       setUsers(loadedUsers);
@@ -391,6 +437,9 @@ export default function App() {
       setBordereaux(b || {});
       setProspection(p || []);
       setObjectifs(o || {});
+      setRdvClients(rc || []);
+      setMailTpl(mt && mt.length ? mt : DEFAULT_MAIL_TEMPLATES);
+      if (!mt || !mt.length) await sSet("crm-mailtpl", DEFAULT_MAIL_TEMPLATES);
       /* Purge automatique de la corbeille après 30 jours */
       const freshTrash = (t || []).filter((x) => Date.now() - new Date(x.deletedAt).getTime() < 30 * 86400000);
       setTrash(freshTrash);
@@ -407,6 +456,8 @@ export default function App() {
   const saveProspection = (v) => { setProspection(v); sSet("crm-prospection", v); };
   const saveObjectifs = (v) => { setObjectifs(v); sSet("crm-objectifs", v); };
   const saveTrash = (v) => { setTrash(v); sSet("crm-trash", v); };
+  const saveRdvClients = (v) => { setRdvClients(v); sSet("crm-rdv-clients", v); };
+  const saveMailTpl = (v) => { setMailTpl(v); sSet("crm-mailtpl", v); };
   const toTrash = (kind, data) => saveTrash([...trash, { id: uid(), kind, data, deletedAt: new Date().toISOString(), deletedBy: me ? me.id : "?" }]);
 
   if (loading) {
@@ -438,6 +489,7 @@ export default function App() {
     ["clients", "👥 Clients"],
     ["prospection", "🎯 Prospection"],
     ["ventes", "📈 Ventes équipe"],
+    ["messagerie", "✉️ Messagerie"],
     ["paye", "💶 Ma rémunération"],
     ["docs", "📁 Documents"],
     ...(me.isManager ? [["equipe", "🧑‍💼 Mon équipe"], ["corbeille", "🗑️ Corbeille"]] : []),
@@ -483,7 +535,7 @@ export default function App() {
               <button
                 className="btn ghost sm" style={{ width: "100%", marginBottom: 6 }}
                 onClick={() => {
-                  const payload = { version: 4, date: todayISO(), users, clients, sales, docs, bordereaux, prospection, objectifs, trash };
+                  const payload = { version: 5, date: todayISO(), users, clients, sales, docs, bordereaux, prospection, objectifs, trash, rdvClients, mailTpl };
                   const text = JSON.stringify(payload);
                   /* Tentative de téléchargement (peut être bloqué selon l'environnement) */
                   try {
@@ -515,8 +567,11 @@ export default function App() {
       </aside>
 
       <main className="main">
-        <RdvReminder prospection={prospection} me={me} />
-        {page === "dash" && <Dashboard clients={clients} users={users} view={view} me={me} sales={sales} saveClients={saveClients} goClient={(c) => { setOpenClient(c.id); setPage("clients"); }} />}
+        <RdvReminder prospection={prospection} rdvClients={rdvClients} clients={clients} me={me} />
+        {page === "dash" && <Dashboard clients={clients} users={users} view={view} me={me} sales={sales} rdvClients={rdvClients} saveClients={saveClients} goClient={(c) => { setOpenClient(c.id); setPage("clients"); }} />}
+        {page === "messagerie" && (
+          <MessageriePage clients={clients} users={users} me={me} mailTpl={mailTpl} saveMailTpl={saveMailTpl} />
+        )}
         {page === "prospection" && (
           <ProspectionPage
             prospection={prospection} saveProspection={saveProspection} me={me} users={users} toTrash={toTrash}
@@ -532,6 +587,8 @@ export default function App() {
             client={clients.find((c) => c.id === openClient)}
             me={me}
             users={users}
+            rdvClients={rdvClients}
+            saveRdvClients={saveRdvClients}
             back={() => setOpenClient(null)}
             update={(next) => saveClients(clients.map((c) => (c.id === next.id ? next : c)))}
             remove={() => { if (confirm("Mettre cette fiche client à la corbeille ? (restaurable pendant 30 jours)")) { toTrash("client", clients.find((c) => c.id === openClient)); saveClients(clients.filter((c) => c.id !== openClient)); setOpenClient(null); } }}
@@ -572,6 +629,8 @@ export default function App() {
                 if (p.prospection) saveProspection(p.prospection);
                 if (p.objectifs) saveObjectifs(p.objectifs);
                 if (p.trash) saveTrash(p.trash);
+                if (p.rdvClients) saveRdvClients(p.rdvClients);
+                if (p.mailTpl) saveMailTpl(p.mailTpl);
                 alert("Import terminé ✓ Vos données sont restaurées.");
                 setBackupModal(null);
               } catch { alert("Impossible de lire cette sauvegarde. Vérifiez que le texte est copié en entier."); }
@@ -666,7 +725,7 @@ function Login({ users, onLogin, onSetPassword }) {
 }
 
 /* ================= TABLEAU DE BORD ================= */
-function Dashboard({ clients: allClients, users, view, me, sales, saveClients, goClient }) {
+function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, saveClients, goClient }) {
   const [showContrats, setShowContrats] = useState(false);
   /* Cloisonnement : un commercial ne voit que ses clients.
      Le manager voit tout depuis son espace, ou le portefeuille du conseiller consulté. */
@@ -701,6 +760,22 @@ function Dashboard({ clients: allClients, users, view, me, sales, saveClients, g
     if (bd) {
       const d = daysUntil(bd);
       if (d >= 0 && d <= 7) alerts.push({ kind: "anniv", client: c, date: bd.toISOString().slice(0, 10), days: d, age: ageAt(c.dateNaissance, bd) });
+    }
+    /* 📋 Fiche patrimoniale non complétée 1 mois après la création de la fiche client */
+    if (!(c.fichePatrimoniale && c.fichePatrimoniale.doneAt) && c.createdAt) {
+      const age = Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000);
+      if (age >= 30) alerts.push({ kind: "fiche", client: c, date: today, days: age });
+    }
+  });
+  /* 📅 RDV clients dans les 7 prochains jours (les miens, ou ceux de l'espace consulté) */
+  (rdvClients || []).forEach((r) => {
+    if (r.done || !r.date) return;
+    if (!me.isManager && r.ownerId !== me.id) return;
+    if (me.isManager && view.id !== me.id && r.ownerId !== view.id) return;
+    const d = daysUntil(new Date(r.date + "T00:00:00"));
+    if (d >= 0 && d <= 7) {
+      const c = allClients.find((x) => x.id === r.clientId);
+      if (c) alerts.push({ kind: "rdvclient", client: c, rdv: r, date: r.date, days: d });
     }
   });
   alerts.sort((a, b) => a.date.localeCompare(b.date));
@@ -749,6 +824,20 @@ function Dashboard({ clients: allClients, users, view, me, sales, saveClients, g
                   <b>🎂 Anniversaire</b> — {a.client.prenom} {a.client.nom} fêtera ses {a.age} ans
                   <div style={{ fontSize: 12, color: "#8593a8" }}>
                     Le {fmtDate(a.date)}{a.days === 0 ? " (aujourd'hui ! 🎉)" : ` (dans ${a.days} j)`} — une bonne occasion de prendre des nouvelles.
+                  </div>
+                </>
+              ) : a.kind === "fiche" ? (
+                <>
+                  <b>📋 Fiche patrimoniale à compléter</b> — {a.client.nom.toUpperCase()} {a.client.prenom}
+                  <div style={{ fontSize: 12, color: "#8593a8" }}>
+                    Fiche client créée il y a {a.days} jours sans fiche patrimoniale. Ouvrez la fiche client pour la compléter (10 questions).
+                  </div>
+                </>
+              ) : a.kind === "rdvclient" ? (
+                <>
+                  <b>📅 RDV client</b> — {a.client.nom.toUpperCase()} {a.client.prenom} · {a.rdv.motif}
+                  <div style={{ fontSize: 12, color: "#8593a8" }}>
+                    {fmtDate(a.date)}{a.rdv.heure && ` à ${a.rdv.heure}`}{a.days === 0 ? " (aujourd'hui)" : ` (dans ${a.days} j)`}
                   </div>
                 </>
               ) : (
@@ -941,7 +1030,7 @@ function ClientsPage({ clients, saveClients, me, users, openClient }) {
       {showForm && (
         <ClientForm
           onClose={() => setShowForm(false)}
-          onSave={(c) => { saveClients([...clients, { ...c, id: uid(), createdBy: me.id, createdAt: todayISO(), contrats: [], alertes: [] }]); setShowForm(false); }}
+          onSave={(c) => { const nc = { ...c, id: uid(), createdBy: me.id, createdAt: todayISO(), contrats: [], alertes: [] }; saveClients([...clients, nc]); setShowForm(false); openClient(nc.id); }}
         />
       )}
     </div>
@@ -981,7 +1070,9 @@ function ClientForm({ initial, onSave, onClose }) {
   );
 }
 
-function ClientDetail({ client, me, users, back, update, remove }) {
+function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, update, remove }) {
+  const [showRdv, setShowRdv] = useState(false);
+  const [showFiche, setShowFiche] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showContract, setShowContract] = useState(false);
   const [editContract, setEditContract] = useState(null);
@@ -1073,6 +1164,66 @@ function ClientDetail({ client, me, users, back, update, remove }) {
       </div>
 
       <HistoriqueCard client={client} update={update} me={me} users={users} />
+
+      {/* ---- Rendez-vous client ---- */}
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+          <h2 style={{ fontSize: 17 }}>📅 Rendez-vous ({(rdvClients || []).filter((r) => r.clientId === client.id && !r.done).length} à venir)</h2>
+          <button className="btn gold sm" onClick={() => setShowRdv(true)}>+ Planifier un RDV</button>
+        </div>
+        {(rdvClients || []).filter((r) => r.clientId === client.id).sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)).map((r) => (
+          <div key={r.id} className="row" style={{ justifyContent: "space-between", padding: "8px 4px", borderBottom: "1px solid #eef1f6", opacity: r.done ? 0.55 : 1 }}>
+            <div style={{ fontSize: 13.5 }}>
+              <b>{fmtDate(r.date)}{r.heure && ` à ${r.heure}`}</b> — {r.motif}
+              {r.note && <div style={{ fontSize: 12, color: "#5b6b82" }}>💬 {r.note}</div>}
+              <div style={{ fontSize: 11.5, color: "#8593a8" }}>Avec {((users || []).find((u) => u.id === r.ownerId) || {}).prenom || "—"}{r.done && " · ✓ effectué"}</div>
+            </div>
+            <div className="row">
+              {!r.done && <button className="btn ghost sm" onClick={() => saveRdvClients(rdvClients.map((x) => (x.id === r.id ? { ...x, done: true } : x)))}>✓ Fait</button>}
+              <button className="btn danger sm" onClick={() => confirm("Supprimer ce rendez-vous ?") && saveRdvClients(rdvClients.filter((x) => x.id !== r.id))}>✕</button>
+            </div>
+          </div>
+        ))}
+        {(rdvClients || []).filter((r) => r.clientId === client.id).length === 0 && (
+          <div style={{ color: "#8593a8", fontSize: 13.5 }}>Aucun rendez-vous planifié avec ce client.</div>
+        )}
+      </div>
+
+      {/* ---- Fiche patrimoniale ---- */}
+      <div className="card" style={{ marginTop: 16, border: client.fichePatrimoniale ? undefined : `2px solid ${GOLD}` }}>
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+          <h2 style={{ fontSize: 17 }}>
+            📋 Fiche patrimoniale {client.fichePatrimoniale
+              ? <span className="badge b-navy" style={{ marginLeft: 6 }}>✓ complétée le {fmtDate(client.fichePatrimoniale.doneAt)}</span>
+              : <span className="badge b-gold" style={{ marginLeft: 6 }}>À compléter</span>}
+          </h2>
+          <button className="btn gold sm" onClick={() => setShowFiche(true)}>
+            {client.fichePatrimoniale ? "Voir / modifier" : "📋 Compléter la fiche (10 questions)"}
+          </button>
+        </div>
+        {client.fichePatrimoniale ? (
+          <SynthesePatrimoniale answers={client.fichePatrimoniale.answers} />
+        ) : (
+          <div style={{ color: "#8593a8", fontSize: 13.5 }}>
+            10 questions pour connaître la situation, les objectifs et le profil de risque du client. Une synthèse est générée automatiquement.
+          </div>
+        )}
+      </div>
+
+      {showRdv && (
+        <RdvClientForm
+          client={client} me={me}
+          onClose={() => setShowRdv(false)}
+          onSave={(rdv) => { saveRdvClients([...(rdvClients || []), rdv]); setShowRdv(false); }}
+        />
+      )}
+      {showFiche && (
+        <FichePatrimonialeModal
+          client={client}
+          onClose={() => setShowFiche(false)}
+          onSave={(answers) => { update({ ...client, fichePatrimoniale: { answers, doneAt: (client.fichePatrimoniale || {}).doneAt || todayISO() } }); setShowFiche(false); }}
+        />
+      )}
 
       {showEdit && <ClientForm initial={client} onClose={() => setShowEdit(false)} onSave={(f) => { update({ ...client, ...f }); setShowEdit(false); }} />}
       {showContract && (
@@ -1711,7 +1862,7 @@ function ObjectifsForm({ users, month, initial, onSave, onClose }) {
 /* ================= PROSPECTION ================= */
 const emptyProspect = (ownerId) => ({
   id: uid(), ownerId,
-  nom: "", prenom: "", profession: "", telephone: "", ville: "",
+  nom: "", prenom: "", profession: "", telephone: "", ville: "", email: "",
   dateAppel: todayISO(), repondu: "Oui",
   statut: "RDV pris",
   dateRdv: "", heureRdv: "",
@@ -1733,7 +1884,8 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [statutFilter, setStatutFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
-  const [viewMode, setViewMode] = useState("table"); // table | semaine | mois
+  const [viewMode, setViewMode] = useState("table"); // table | jour | semaine | mois
+  const [showImport, setShowImport] = useState(false);
 
   /* Cloisonnement identique aux clients */
   const mine = me.isManager ? prospection : prospection.filter((p) => p.ownerId === me.id);
@@ -1803,7 +1955,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
       id: uid(),
       nom: entry.nom || "", prenom: entry.prenom || "",
       profession: entry.profession || "", telephone: entry.telephone || "",
-      email: "", dateNaissance: "", revenus: "", situation: "Célibataire",
+      email: entry.email || "", dateNaissance: "", revenus: "", situation: "Célibataire",
       createdBy: entry.ownerId || me.id, createdAt: todayISO(),
       contrats: [], alertes: [],
       historique: [{
@@ -1851,6 +2003,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
           </div>
         </div>
         <div className="row">
+          {me.isManager && <button className="btn ghost" onClick={() => setShowImport(true)}>📥 Importer une liste</button>}
           <button className="btn ghost" onClick={exportCSV}>⬇️ Exporter (Excel)</button>
           <button className="btn gold" onClick={() => { setEditEntry(null); setShowForm(true); }}>+ Nouvel appel / RDV</button>
         </div>
@@ -1989,6 +2142,14 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
       </div>
       )}
 
+      {showImport && (
+        <ImportListeModal
+          users={users}
+          onClose={() => setShowImport(false)}
+          onImport={(entries) => { saveProspection([...prospection, ...entries]); setShowImport(false); alert(`${entries.length} prospect(s) importé(s) ✓`); }}
+        />
+      )}
+
       {showForm && (
         <ProspectForm
           initial={editEntry}
@@ -2024,6 +2185,7 @@ function ProspectForm({ initial, me, users, onSave, onClose, onDelete, onConvert
           </Field>
           <Field label="Téléphone"><input className="in" value={f.telephone} onChange={(e) => set("telephone", e.target.value)} /></Field>
           <Field label="Ville"><input className="in" value={f.ville} onChange={(e) => set("ville", e.target.value)} /></Field>
+          <Field label="E-mail"><input className="in" value={f.email || ""} onChange={(e) => set("email", e.target.value)} /></Field>
           {me.isManager && (
             <Field label="Commercial">
               <select className="sel" value={f.ownerId} onChange={(e) => set("ownerId", e.target.value)}>
@@ -2538,7 +2700,7 @@ function BackupModal({ modal, close, doImport }) {
 }
 
 /* ================= ALERTE RDV (10 minutes avant) ================= */
-function RdvReminder({ prospection, me }) {
+function RdvReminder({ prospection, rdvClients, clients, me }) {
   const [now, setNow] = useState(() => new Date());
   const [dismissed, setDismissed] = useState([]);
 
@@ -2548,15 +2710,25 @@ function RdvReminder({ prospection, me }) {
   }, []);
 
   const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const soon = prospection.filter((p) => {
-    if (p.ownerId !== me.id || !p.dateRdv || !p.heureRdv) return false;
-    if (p.dateRdv !== todayIso) return false;
-    if (dismissed.includes(p.id)) return false;
-    const [h, m] = p.heureRdv.split(":").map(Number);
+  const isSoon = (dateISO, heure) => {
+    if (dateISO !== todayIso || !heure) return false;
+    const [h, m] = heure.split(":").map(Number);
     const rdv = new Date(now); rdv.setHours(h, m, 0, 0);
     const diffMin = (rdv - now) / 60000;
     return diffMin <= 10 && diffMin > -15; // de J-10 min jusqu'à 15 min après le début
-  });
+  };
+
+  const soon = [
+    ...prospection
+      .filter((p) => p.ownerId === me.id && !dismissed.includes(p.id) && isSoon(p.dateRdv, p.heureRdv))
+      .map((p) => ({ id: p.id, heure: p.heureRdv, titre: `${(p.nom || "").toUpperCase()} ${p.prenom || ""}`, sous: `Prospection${p.profession ? " · " + p.profession : ""}${p.telephone ? " · 📞 " + p.telephone : ""}` })),
+    ...(rdvClients || [])
+      .filter((r) => r.ownerId === me.id && !r.done && !dismissed.includes(r.id) && isSoon(r.date, r.heure))
+      .map((r) => {
+        const c = (clients || []).find((x) => x.id === r.clientId) || {};
+        return { id: r.id, heure: r.heure, titre: `${(c.nom || "").toUpperCase()} ${c.prenom || ""}`, sous: `Client · ${r.motif}${c.telephone ? " · 📞 " + c.telephone : ""}` };
+      }),
+  ];
 
   if (soon.length === 0) return null;
   return (
@@ -2568,14 +2740,398 @@ function RdvReminder({ prospection, me }) {
           alignItems: "center", boxShadow: "0 6px 20px rgba(201,162,75,.25)",
         }}>
           <div>
-            <b style={{ color: "#7a5c17", fontSize: 15 }}>⏰ RDV imminent — {p.heureRdv}</b>
-            <div style={{ fontSize: 13.5, color: NAVY, marginTop: 2 }}>
-              {(p.nom || "").toUpperCase()} {p.prenom || ""} {p.profession && `· ${p.profession}`} {p.telephone && `· 📞 ${p.telephone}`}
-            </div>
+            <b style={{ color: "#7a5c17", fontSize: 15 }}>⏰ RDV imminent — {p.heure}</b>
+            <div style={{ fontSize: 13.5, color: NAVY, marginTop: 2 }}>{p.titre} · {p.sous}</div>
           </div>
           <button className="btn ghost sm" onClick={() => setDismissed([...dismissed, p.id])}>✓ Vu</button>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ================= RDV CLIENT (motifs patrimoniaux) ================= */
+function RdvClientForm({ client, me, onClose, onSave }) {
+  const [f, setF] = useState({ motif: MOTIFS_RDV[0], date: todayISO(), heure: "10:00", note: "" });
+  return (
+    <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 520 }}>
+        <h2>📅 Planifier un RDV — {client.nom.toUpperCase()} {client.prenom}</h2>
+        <div style={{ marginTop: 12 }}>
+          <Field label="Motif du rendez-vous">
+            <select className="sel" style={{ width: "100%" }} value={f.motif} onChange={(e) => setF({ ...f, motif: e.target.value })}>
+              {MOTIFS_RDV.map((m) => <option key={m}>{m}</option>)}
+            </select>
+          </Field>
+        </div>
+        <div className="row" style={{ marginTop: 10 }}>
+          <Field label="Date"><input className="in" type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+          <Field label="Heure"><input className="in" type="time" value={f.heure} onChange={(e) => setF({ ...f, heure: e.target.value })} /></Field>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <Field label="Note (facultatif)">
+            <textarea className="ta" rows={2} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="ex : apporter le dernier relevé d'assurance vie…" />
+          </Field>
+        </div>
+        <div className="row" style={{ marginTop: 16, justifyContent: "flex-end" }}>
+          <button className="btn ghost" onClick={onClose}>Annuler</button>
+          <button className="btn gold" onClick={() => onSave({ id: uid(), clientId: client.id, ownerId: me.id, ...f, done: false, createdAt: todayISO() })}>
+            Planifier — un rappel s'affichera 10 min avant
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= FICHE PATRIMONIALE (10 questions) ================= */
+function FichePatrimonialeModal({ client, onClose, onSave }) {
+  const [answers, setAnswers] = useState({ ...((client.fichePatrimoniale || {}).answers || {}) });
+  const [step, setStep] = useState(0);
+  const total = QUESTIONS_PATRIMONIALES.length;
+  const Q = QUESTIONS_PATRIMONIALES[step];
+  const pct = Math.round(((step + 1) / total) * 100);
+  const set = (v) => setAnswers({ ...answers, [Q.id]: v });
+
+  return (
+    <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 620 }}>
+        <h2>📋 Fiche patrimoniale — {client.nom.toUpperCase()} {client.prenom}</h2>
+        <div style={{ margin: "14px 0 4px", display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8593a8" }}>
+          <span>Question {step + 1} / {total}</span><span>{pct} %</span>
+        </div>
+        <div style={{ height: 8, background: "#eef1f6", borderRadius: 4, overflow: "hidden", marginBottom: 20 }}>
+          <div style={{ height: "100%", width: `${pct}%`, background: GOLD, borderRadius: 4, transition: "width .3s" }} />
+        </div>
+
+        <div style={{ fontSize: 34, textAlign: "center" }}>{Q.icon}</div>
+        <div style={{ fontSize: 16.5, fontWeight: 700, color: NAVY, textAlign: "center", margin: "8px 0 16px" }}>{Q.q}</div>
+
+        {Q.type === "select" ? (
+          <div>
+            {Q.options.map((o) => (
+              <div
+                key={o}
+                onClick={() => set(o)}
+                style={{
+                  padding: "12px 14px", borderRadius: 10, marginBottom: 8, cursor: "pointer", fontSize: 14,
+                  border: answers[Q.id] === o ? `2px solid ${GOLD}` : "1px solid #dfe4ec",
+                  background: answers[Q.id] === o ? "#fdf9f0" : "#fff", fontWeight: answers[Q.id] === o ? 700 : 400,
+                }}
+              >
+                {answers[Q.id] === o ? "● " : "○ "}{o}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <textarea className="ta" rows={3} autoFocus value={answers[Q.id] || ""} onChange={(e) => set(e.target.value)} placeholder={Q.ph} style={{ fontSize: 14 }} />
+        )}
+
+        <div className="row" style={{ marginTop: 18, justifyContent: "space-between" }}>
+          <button className="btn ghost" onClick={() => (step === 0 ? onClose() : setStep(step - 1))}>{step === 0 ? "Annuler" : "← Précédent"}</button>
+          {step < total - 1 ? (
+            <button className="btn gold" onClick={() => setStep(step + 1)}>Suivant →</button>
+          ) : (
+            <button className="btn gold" onClick={() => onSave(answers)}>✓ Terminer et générer la synthèse</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Synthèse automatique : ne conserve que l'essentiel, joliment présenté */
+function SynthesePatrimoniale({ answers }) {
+  const a = answers || {};
+  const items = [
+    { icon: "🎯", label: "Objectif principal", v: a.q1 },
+    { icon: "👨‍👩‍👧", label: "Situation familiale", v: a.q2 },
+    { icon: "💶", label: "Revenus & épargne", v: a.q3 },
+    { icon: "🏠", label: "Patrimoine", v: a.q4 },
+    { icon: "🏦", label: "Dettes", v: a.q5 },
+    { icon: "🧾", label: "Fiscalité", v: a.q6 },
+    { icon: "⏳", label: "Horizon", v: a.q7 },
+    { icon: "📉", label: "Profil de risque", v: a.q8 },
+    { icon: "📈", label: "Expérience", v: a.q9 },
+    { icon: "🛡️", label: "Protection / transmission", v: a.q10 },
+  ].filter((x) => (x.v || "").trim());
+  if (!items.length) return <div style={{ color: "#8593a8", fontSize: 13.5 }}>Fiche vide.</div>;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+      {items.map((x) => (
+        <div key={x.label} style={{ background: "#f8f9fc", borderRadius: 8, padding: "8px 10px", borderLeft: `3px solid ${GOLD}` }}>
+          <div style={{ fontSize: 11, color: "#8593a8", textTransform: "uppercase", letterSpacing: 0.5 }}>{x.icon} {x.label}</div>
+          <div style={{ fontSize: 13, color: NAVY, marginTop: 2, whiteSpace: "pre-wrap" }}>{x.v}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ================= MESSAGERIE ================= */
+function MessageriePage({ clients, users, me, mailTpl, saveMailTpl }) {
+  /* Cloisonnement identique au reste */
+  const mine = me.isManager ? clients : clients.filter((c) => (c.createdBy || "quentin") === me.id);
+  const withEmail = mine.filter((c) => (c.email || "").includes("@"));
+
+  const [selected, setSelected] = useState([]);
+  const [profFilter, setProfFilter] = useState("all");
+  const [tplId, setTplId] = useState(mailTpl[0] ? mailTpl[0].id : "");
+  const [sujet, setSujet] = useState(mailTpl[0] ? mailTpl[0].sujet : "");
+  const [corps, setCorps] = useState(mailTpl[0] ? mailTpl[0].corps : "");
+  const [editTpl, setEditTpl] = useState(false);
+
+  const professions = [...new Set(mine.map((c) => (c.profession || "").trim()).filter(Boolean))].sort();
+  const visible = profFilter === "all" ? withEmail : withEmail.filter((c) => (c.profession || "").trim() === profFilter);
+
+  const toggle = (id) => setSelected(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  const allVisibleSelected = visible.length > 0 && visible.every((c) => selected.includes(c.id));
+
+  const pickTpl = (id) => {
+    const t = mailTpl.find((x) => x.id === id);
+    setTplId(id);
+    if (t) { setSujet(t.sujet); setCorps(t.corps); }
+  };
+
+  const emails = mine.filter((c) => selected.includes(c.id)).map((c) => c.email.trim());
+  const openMail = () => {
+    if (!emails.length) { alert("Sélectionnez au moins un client."); return; }
+    /* Destinataires en Cci : chaque client ne voit pas les adresses des autres (RGPD) */
+    const url = `mailto:?bcc=${encodeURIComponent(emails.join(","))}&subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corps)}`;
+    if (url.length > 7500) {
+      alert("Trop de destinataires pour un seul e-mail (limite technique des boîtes mail). Réduisez la sélection (max ~50 clients) ou copiez les adresses avec l'autre bouton.");
+      return;
+    }
+    window.location.href = url;
+  };
+  const copyEmails = async () => {
+    if (!emails.length) { alert("Sélectionnez au moins un client."); return; }
+    try { await navigator.clipboard.writeText(emails.join(", ")); alert(`${emails.length} adresse(s) copiée(s) ✓ Collez-les en Cci dans votre boîte mail.`); }
+    catch { prompt("Copiez les adresses ci-dessous :", emails.join(", ")); }
+  };
+
+  const saveCurrentAsTpl = () => {
+    const nom = prompt("Nom du modèle :", "Nouveau modèle");
+    if (!nom) return;
+    saveMailTpl([...mailTpl, { id: uid(), nom, sujet, corps }]);
+  };
+
+  return (
+    <div>
+      <div className="ph">
+        <div>
+          <h1>✉️ Messagerie</h1>
+          <div className="sub">Campagnes d'e-mails clients — {withEmail.length} client(s) avec adresse e-mail{me.isManager ? " (tous portefeuilles)" : " (votre portefeuille)"}</div>
+        </div>
+        <button className="btn ghost" onClick={() => setEditTpl(!editTpl)}>{editTpl ? "Fermer les modèles" : "⚙️ Gérer les modèles"}</button>
+      </div>
+
+      {editTpl && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ fontSize: 15, marginBottom: 10 }}>Modèles enregistrés</h2>
+          {mailTpl.map((t) => (
+            <div key={t.id} className="row" style={{ justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #eef1f6" }}>
+              <div style={{ fontSize: 13.5 }}><b>{t.nom}</b> <span style={{ color: "#8593a8" }}>— {t.sujet}</span></div>
+              <div className="row">
+                <button className="btn ghost sm" onClick={() => pickTpl(t.id)}>Utiliser</button>
+                <button className="btn danger sm" onClick={() => confirm(`Supprimer le modèle « ${t.nom} » ?`) && saveMailTpl(mailTpl.filter((x) => x.id !== t.id))}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "5fr 7fr", gap: 16 }}>
+        {/* ---- Destinataires ---- */}
+        <div className="card">
+          <h2 style={{ fontSize: 15, marginBottom: 10 }}>1️⃣ Destinataires ({selected.length} sélectionné(s))</h2>
+          <div className="row" style={{ marginBottom: 10 }}>
+            <select className="sel" value={profFilter} onChange={(e) => setProfFilter(e.target.value)}>
+              <option value="all">Toutes les professions</option>
+              {professions.map((p) => <option key={p}>{p}</option>)}
+            </select>
+            <button className="btn ghost sm" onClick={() => setSelected(allVisibleSelected ? selected.filter((id) => !visible.some((c) => c.id === id)) : [...new Set([...selected, ...visible.map((c) => c.id)])])}>
+              {allVisibleSelected ? "Tout désélectionner" : "Tout sélectionner"}
+            </button>
+          </div>
+          <div style={{ maxHeight: 420, overflowY: "auto" }}>
+            {visible.map((c) => (
+              <label key={c.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 4px", borderBottom: "1px solid #f0f2f6", cursor: "pointer", fontSize: 13.5 }}>
+                <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} />
+                <span><b>{c.nom.toUpperCase()}</b> {c.prenom} <span style={{ color: "#8593a8", fontSize: 12 }}>· {c.profession || "—"} · {c.email}</span></span>
+              </label>
+            ))}
+            {visible.length === 0 && <div style={{ color: "#8593a8", fontSize: 13 }}>Aucun client avec e-mail pour ce filtre.</div>}
+          </div>
+        </div>
+
+        {/* ---- Message ---- */}
+        <div className="card">
+          <h2 style={{ fontSize: 15, marginBottom: 10 }}>2️⃣ Message</h2>
+          <Field label="Modèle">
+            <select className="sel" style={{ width: "100%" }} value={tplId} onChange={(e) => pickTpl(e.target.value)}>
+              {mailTpl.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
+            </select>
+          </Field>
+          <div style={{ marginTop: 10 }}>
+            <Field label="Objet"><input className="in" style={{ width: "100%" }} value={sujet} onChange={(e) => setSujet(e.target.value)} /></Field>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <Field label="Message">
+              <textarea className="ta" rows={11} value={corps} onChange={(e) => setCorps(e.target.value)} />
+            </Field>
+          </div>
+          <div className="row" style={{ marginTop: 14, justifyContent: "space-between", flexWrap: "wrap" }}>
+            <button className="btn ghost sm" onClick={saveCurrentAsTpl}>💾 Enregistrer comme modèle</button>
+            <div className="row">
+              <button className="btn ghost" onClick={copyEmails}>📋 Copier les adresses</button>
+              <button className="btn gold" onClick={openMail}>✉️ Ouvrir dans ma boîte mail ({selected.length})</button>
+            </div>
+          </div>
+          <div style={{ fontSize: 11.5, color: "#8593a8", marginTop: 10 }}>
+            ℹ️ Le bouton ouvre votre boîte mail habituelle avec les destinataires en <b>Cci</b> (les clients ne voient pas les adresses des autres). Au-delà de ~50 destinataires, utilisez « Copier les adresses ».
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= IMPORT DE LISTES DE PROSPECTION (Excel / CSV) ================= */
+function ImportListeModal({ users, onClose, onImport }) {
+  const [rows, setRows] = useState(null);      // lignes brutes du fichier
+  const [headers, setHeaders] = useState([]);  // en-têtes détectés
+  const [mapping, setMapping] = useState({});  // colonne fichier → champ CRM
+  const [owner, setOwner] = useState(users[0] ? users[0].id : "");
+  const [fileName, setFileName] = useState("");
+
+  const CHAMPS = [
+    ["nom", "Nom *"], ["prenom", "Prénom"], ["profession", "Profession"],
+    ["telephone", "Téléphone"], ["ville", "Ville"], ["email", "E-mail"], ["", "— Ignorer —"],
+  ];
+
+  /* Détection automatique des colonnes selon leur en-tête */
+  const autoMap = (hdrs) => {
+    const m = {};
+    hdrs.forEach((h, i) => {
+      const l = String(h || "").toLowerCase();
+      if (/nom.*famille|^nom$|raison/.test(l) && !Object.values(m).includes("nom")) m[i] = "nom";
+      else if (/pr[eé]nom/.test(l)) m[i] = "prenom";
+      else if (/profession|m[eé]tier|activit|sp[eé]cialit/.test(l)) m[i] = "profession";
+      else if (/t[eé]l|phone|portable|mobile/.test(l)) m[i] = "telephone";
+      else if (/ville|commune|localit/.test(l)) m[i] = "ville";
+      else if (/mail|courriel/.test(l)) m[i] = "email";
+      else if (/^nom/.test(l) && !Object.values(m).includes("nom")) m[i] = "nom";
+      else m[i] = "";
+    });
+    return m;
+  };
+
+  const readFile = (file) => {
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        const nonEmpty = data.filter((r) => r.some((c) => String(c).trim()));
+        if (nonEmpty.length < 2) { alert("Fichier vide ou illisible."); return; }
+        const hdrs = nonEmpty[0].map((h) => String(h));
+        setHeaders(hdrs);
+        setRows(nonEmpty.slice(1));
+        setMapping(autoMap(hdrs));
+      } catch { alert("Impossible de lire ce fichier. Formats acceptés : .xlsx, .xls, .csv"); }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const doImport = () => {
+    const nomCol = Object.keys(mapping).find((k) => mapping[k] === "nom");
+    if (nomCol === undefined) { alert("Indiquez quelle colonne contient le NOM (obligatoire)."); return; }
+    const entries = rows
+      .map((r) => {
+        const e = { nom: "", prenom: "", profession: "", telephone: "", ville: "", email: "" };
+        Object.keys(mapping).forEach((i) => { if (mapping[i]) e[mapping[i]] = String(r[i] ?? "").trim(); });
+        return e;
+      })
+      .filter((e) => e.nom)
+      .map((e) => ({
+        id: uid(), ownerId: owner,
+        nom: e.nom, prenom: e.prenom, profession: e.profession, telephone: e.telephone, ville: e.ville, email: e.email,
+        dateAppel: todayISO(), repondu: "Non", statut: "À rappeler",
+        dateRdv: "", heureRdv: "", qualitePrise: "", noteRdv: "",
+        commentaire: "", createdAt: todayISO(), importe: true,
+      }));
+    if (!entries.length) { alert("Aucune ligne exploitable (colonne NOM vide ?)."); return; }
+    if (!confirm(`Importer ${entries.length} prospect(s) et les attribuer à ${((users.find((u) => u.id === owner)) || {}).prenom} ?`)) return;
+    onImport(entries);
+  };
+
+  return (
+    <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 760, maxHeight: "88vh", overflowY: "auto" }}>
+        <h2>📥 Importer une liste de prospection</h2>
+
+        {!rows && (
+          <div style={{ marginTop: 14 }}>
+            <p style={{ fontSize: 13.5, color: "#5b6b82" }}>
+              Choisissez un fichier <b>Excel (.xlsx, .xls)</b> ou <b>CSV</b> contenant vos prospects
+              (une ligne par prospect, avec au minimum une colonne Nom).
+            </p>
+            <input
+              type="file" accept=".xlsx,.xls,.csv"
+              onChange={(e) => e.target.files[0] && readFile(e.target.files[0])}
+              style={{ marginTop: 10, fontSize: 14 }}
+            />
+          </div>
+        )}
+
+        {rows && (
+          <>
+            <div style={{ fontSize: 13, color: "#5b6b82", margin: "10px 0" }}>
+              📄 <b>{fileName}</b> — {rows.length} ligne(s) détectée(s). Vérifiez la correspondance des colonnes :
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table className="t" style={{ fontSize: 12.5 }}>
+                <thead>
+                  <tr>
+                    {headers.map((h, i) => (
+                      <th key={i}>
+                        <div style={{ fontWeight: 400, color: "#8593a8", marginBottom: 4 }}>{h || `Colonne ${i + 1}`}</div>
+                        <select className="sel" style={{ fontSize: 12, width: "100%" }} value={mapping[i] || ""} onChange={(e) => setMapping({ ...mapping, [i]: e.target.value })}>
+                          {CHAMPS.map(([v, l]) => <option key={v + l} value={v}>{l}</option>)}
+                        </select>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.slice(0, 4).map((r, ri) => (
+                    <tr key={ri}>{headers.map((_, i) => <td key={i}>{String(r[i] ?? "")}</td>)}</tr>
+                  ))}
+                  {rows.length > 4 && <tr><td colSpan={headers.length} style={{ color: "#8593a8" }}>… et {rows.length - 4} autre(s) ligne(s)</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <div className="row" style={{ marginTop: 14, alignItems: "flex-end" }}>
+              <Field label="Attribuer cette liste à">
+                <select className="sel" value={owner} onChange={(e) => setOwner(e.target.value)}>
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}
+                </select>
+              </Field>
+              <div style={{ fontSize: 12, color: "#8593a8", paddingBottom: 8 }}>
+                Les prospects arriveront avec le statut « À rappeler ».
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="row" style={{ marginTop: 16, justifyContent: "space-between" }}>
+          <button className="btn ghost" onClick={rows ? () => { setRows(null); setHeaders([]); setFileName(""); } : onClose}>{rows ? "← Autre fichier" : "Annuler"}</button>
+          {rows && <button className="btn gold" onClick={doImport}>Importer {rows.length} prospect(s)</button>}
+        </div>
+      </div>
     </div>
   );
 }
