@@ -206,6 +206,18 @@ const downloadCSV = (filename, headers, rows) => {
   setTimeout(() => URL.revokeObjectURL(url), 3000);
 };
 
+/* Lien "Ajouter à Google Agenda" pré-rempli (heure locale, durée 1h par défaut) */
+const gcalUrl = ({ titre, date, heure, duree = 60, details = "", lieu = "" }) => {
+  if (!date) return null;
+  const [h, m] = (heure || "09:00").split(":").map(Number);
+  const pad = (n) => String(n).padStart(2, "0");
+  const d0 = date.replace(/-/g, "");
+  const endMin = h * 60 + m + duree;
+  const start = `${d0}T${pad(h)}${pad(m)}00`;
+  const end = `${d0}T${pad(Math.floor(endMin / 60) % 24)}${pad(endMin % 60)}00`;
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(titre)}&dates=${start}/${end}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(lieu)}`;
+};
+
 /* Format automatique en euros : "1200" → "1 200,00 €" (saisie libre conservée si non numérique) */
 const autoEUR = (raw) => {
   const s = String(raw || "").trim();
@@ -303,7 +315,8 @@ const CSS = `
   .btn.ghost { background:#fff; color:${NAVY}; border:1px solid #cdd6e2; }
   .btn.sm { padding: 5px 10px; font-size: 12.5px; border-radius:6px; }
   .btn.danger { background:#fff; color:#B3261E; border:1px solid #e6c9c7; }
-  .in, .sel, .ta { width:100%; border:1px solid #cdd6e2; border-radius:8px; padding: 8px 10px; font-size:14px; color:${NAVY}; background:#fff; }
+  .in, .sel, .ta { width:100%; border:1px solid #cdd6e2; border-radius:8px; padding: 8px 10px; font-size:14px; color:${NAVY}; background:#fff; font-family: inherit; }
+  textarea, input, select, button { font-family: inherit; }
   .in:focus,.sel:focus,.ta:focus { outline: 2px solid ${GOLD}55; border-color:${GOLD}; }
   .lbl { font-size: 12px; font-weight: 600; color:#41506a; display:block; margin-bottom:4px; letter-spacing:.3px; }
   .fgrid { display:grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: 12px; }
@@ -311,6 +324,9 @@ const CSS = `
   table.t th { background:${NAVY}; color:#fff; padding: 8px 7px; text-align:center; font-weight:600; font-size:11.5px; letter-spacing:.5px; text-transform:uppercase; white-space: nowrap; }
   table.t th:first-child { border-radius: 8px 0 0 0; } table.t th:last-child { border-radius: 0 8px 0 0; }
   table.t td { border-bottom:1px solid #edf1f6; padding: 3px 5px; text-align:center; font-size:12.5px; }
+  table.salest td { height:34px; white-space:nowrap; vertical-align:middle; }
+  table.salest tbody tr:nth-child(odd):not(.paye):not(.annule):not(.decom):not(.totrow):not(.nprow) td { background:#fbfcff; }
+  table.nowrapt td { white-space:nowrap; }
   table.t tbody tr:not(.paye):not(.annule):not(.decom):not(.totrow):not(.nprow):hover td { background:#f6f8fb; }
   table.t input, table.t select { width:100%; border:1px solid transparent; background:transparent; padding: 4px 3px; font-size:12.5px; text-align:center; border-radius:6px; color:inherit; }
   table.t input:focus, table.t select:focus { background:#fff; border-color:${GOLD}; outline:none; }
@@ -728,7 +744,7 @@ function Login({ users, onLogin, onSetPassword }) {
 
 /* ================= TABLEAU DE BORD ================= */
 function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, saveClients, goClient }) {
-  const [showContrats, setShowContrats] = useState(false);
+  const [showContrats, setShowContrats] = useState(null);
   /* Cloisonnement : un commercial ne voit que ses clients.
      Le manager voit tout depuis son espace, ou le portefeuille du conseiller consulté. */
   const clients = useMemo(() => {
@@ -795,16 +811,16 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, sa
           <h1>Tableau de bord</h1>
           <div className="sub">Vue d'ensemble du cabinet · espace de {view.prenom} {view.nom}</div>
         </div>
-        <button className="btn gold" onClick={() => setShowContrats(true)}>📄 Contrats signés du mois</button>
+        <button className="btn gold" onClick={() => setShowContrats("all")}>📄 Contrats signés du mois</button>
       </div>
 
       <div className="kpis" style={{ marginBottom: 20 }}>
         {[
-          [stats.clients, "Clients actifs"], [stats.contrats, "Contrats"], [stats.PER, "PER"],
-          [stats["Assurance vie"], "Assurances vie"], [stats["Prévoyance"], "Prévoyances"],
-          [stats["Protection juridique"], "Protections juridiques"], [stats["Mutuelle"], "Mutuelles"], [stats["Transfert"], "Transferts"],
-        ].map(([n, l]) => (
-          <div key={l} className="kpi" onClick={() => setShowContrats(true)} style={{ cursor: "pointer" }} title="Cliquer pour voir les contrats réalisés">
+          [stats.clients, "Clients actifs", "all"], [stats.contrats, "Contrats", "all"], [stats.PER, "PER", "PER"],
+          [stats["Assurance vie"], "Assurances vie", "Assurance vie"], [stats["Prévoyance"], "Prévoyances", "Prévoyance"],
+          [stats["Protection juridique"], "Protections juridiques", "Protection juridique"], [stats["Mutuelle"], "Mutuelles", "Mutuelle"], [stats["Transfert"], "Transferts", "Transfert"],
+        ].map(([n, l, t]) => (
+          <div key={l} className="kpi" onClick={() => setShowContrats(t)} style={{ cursor: "pointer" }} title={`Voir les contrats ${t === "all" ? "réalisés" : t}`}>
             <div className="n">{n}</div><div className="l">{l}</div>
           </div>
         ))}
@@ -863,21 +879,22 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, sa
 
       <Leaderboard sales={sales} users={users} />
 
-      {showContrats && <ContratsModal sales={sales} users={users} me={me} onClose={() => setShowContrats(false)} />}
+      {showContrats && <ContratsModal sales={sales} users={users} me={me} initialType={showContrats === "all" ? "all" : showContrats} onClose={() => setShowContrats(null)} />}
     </div>
   );
 }
 
 /* ================= LISTE DES CONTRATS SIGNÉS (modal) ================= */
-function ContratsModal({ sales, users, me, onClose }) {
+function ContratsModal({ sales, users, me, onClose, initialType }) {
   const months = Object.keys(sales).sort();
   const [month, setMonth] = useState(months[months.length - 1]);
+  const [typeF, setTypeF] = useState(initialType || "all");
   const md = sales[month] || {};
   const visibleUsers = me.isManager ? users : users.filter((u) => u.id === me.id);
   const rows = [];
   visibleUsers.forEach((u) => {
     (((md[u.id] || {}).rows) || []).forEach((r) => {
-      if ((r.nom || "").trim() && r.statut !== "Annulé" && !r.mirrorOf) rows.push({ ...r, commercial: u.prenom });
+      if ((r.nom || "").trim() && r.statut !== "Annulé" && !r.mirrorOf && (typeF === "all" || r.type === typeF)) rows.push({ ...r, commercial: u.prenom });
     });
   });
   rows.sort((a, b) => (b.dateCreation || "").localeCompare(a.dateCreation || ""));
@@ -887,10 +904,16 @@ function ContratsModal({ sales, users, me, onClose }) {
     <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 760, maxHeight: "85vh", overflowY: "auto" }}>
         <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
-          <h2>📄 Contrats signés — {rows.length} contrat(s) · {fmtEUR(totV)}</h2>
-          <select className="sel" style={{ width: 170 }} value={month} onChange={(e) => setMonth(e.target.value)}>
-            {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
-          </select>
+          <h2>📄 Contrats {typeF !== "all" ? typeF : "réalisés"} — {rows.length} contrat(s) · {fmtEUR(totV)}</h2>
+          <div className="row">
+            <select className="sel" style={{ width: 170 }} value={typeF} onChange={(e) => setTypeF(e.target.value)}>
+              <option value="all">Tous les types</option>
+              {CONTRACT_TYPES.map((t) => <option key={t}>{t}</option>)}
+            </select>
+            <select className="sel" style={{ width: 170 }} value={month} onChange={(e) => setMonth(e.target.value)}>
+              {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+            </select>
+          </div>
         </div>
         <table className="t">
           <thead>
@@ -1068,10 +1091,17 @@ function ClientForm({ initial, onSave, onClose }) {
           <Field label="E-mail"><input className="in" value={f.email} onChange={(e) => set("email", e.target.value)} /></Field>
           <Field label="Profession"><input className="in" value={f.profession} onChange={(e) => set("profession", e.target.value.toUpperCase())} style={{ textTransform: "uppercase" }} /></Field>
           <Field label="Revenus imposables (€)"><input className="in" value={f.revenus} onChange={(e) => set("revenus", e.target.value)} placeholder="ex : 48 000" /></Field>
+          <Field label="Enfants"><input className="in" value={f.enfants || ""} onChange={(e) => set("enfants", e.target.value)} placeholder="ex : 2 (2015, 2018)" /></Field>
+          <Field label="Ville"><input className="in" value={f.ville || ""} onChange={(e) => set("ville", e.target.value)} /></Field>
           <Field label="Situation matrimoniale">
             <select className="sel" value={f.situation} onChange={(e) => set("situation", e.target.value)}>
               {SITUATIONS.map((s) => <option key={s}>{s}</option>)}
             </select>
+          </Field>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <Field label="Commentaires">
+            <textarea className="ta" rows={3} value={f.commentaires || ""} onChange={(e) => set("commentaires", e.target.value)} placeholder="Notes libres sur le client…" />
           </Field>
         </div>
         <div className="row" style={{ marginTop: 18, justifyContent: "flex-end" }}>
@@ -1135,7 +1165,14 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
             <div><b>Profession :</b> {client.profession || "—"}</div>
             <div><b>Revenus imposables :</b> {client.revenus ? fmtEUR(parseNum(client.revenus)) : "—"}</div>
             <div><b>Situation matrimoniale :</b> {client.situation || "—"}</div>
+            <div><b>Enfants :</b> {client.enfants || "—"}</div>
+            <div><b>Ville :</b> {client.ville || "—"}</div>
           </div>
+          {client.commentaires && (
+            <div style={{ marginTop: 10, background: "#f8f9fc", borderRadius: 8, padding: "8px 12px", fontSize: 13, borderLeft: `3px solid ${GOLD}` }}>
+              <b>💬 Commentaires :</b> <span style={{ whiteSpace: "pre-wrap" }}>{client.commentaires}</span>
+            </div>
+          )}
         </div>
 
         <div className="card">
@@ -1193,6 +1230,14 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
               <div style={{ fontSize: 11.5, color: "#8593a8" }}>Avec {((users || []).find((u) => u.id === r.ownerId) || {}).prenom || "—"}{r.done && " · ✓ effectué"}</div>
             </div>
             <div className="row">
+              <button
+                className="btn ghost sm" title="Ajouter à Google Agenda"
+                onClick={() => window.open(gcalUrl({
+                  titre: `RDV client — ${client.nom.toUpperCase()} ${client.prenom}`,
+                  date: r.date, heure: r.heure,
+                  details: `${r.motif}${r.note ? "\n" + r.note : ""}\n(CRM ELYON & Associés)`,
+                }), "_blank")}
+              >📆</button>
               {!r.done && <button className="btn ghost sm" onClick={() => saveRdvClients(rdvClients.map((x) => (x.id === r.id ? { ...x, done: true } : x)))}>✓ Fait</button>}
               <button className="btn danger sm" onClick={() => confirm("Supprimer ce rendez-vous ?") && saveRdvClients(rdvClients.filter((x) => x.id !== r.id))}>✕</button>
             </div>
@@ -1409,6 +1454,13 @@ function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me, clie
 
   /* Créer une fiche client + le contrat associé depuis une ligne du tableau */
   const createFromRow = (u, r) => {
+    /* Ligne recopiée : on attribue la fiche au commercial d'origine */
+    let ownerU = u;
+    if (r.mirrorOf) {
+      for (const cu of users) {
+        if (cu.id !== u.id && ((((sales[month] || {})[cu.id] || {}).rows) || []).some((x) => x.id === r.mirrorOf)) { ownerU = cu; break; }
+      }
+    }
     const words = (r.nom || "").trim().split(/\s+/);
     const nomP = words[0] || "";
     const prenomP = words.slice(1).join(" ");
@@ -1424,11 +1476,11 @@ function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me, clie
     const nc = {
       id: uid(), nom: nomP, prenom: prenomP, profession: "", telephone: "", email: "",
       dateNaissance: "", revenus: "", situation: "Célibataire",
-      createdBy: u.id, createdAt: todayISO(), alertes: [],
+      createdBy: ownerU.id, createdAt: todayISO(), alertes: [],
       contrats: [{ id: uid(), type: r.type || "", compagnie: r.compagnie || "", numero: r.ref || "", montant: "", frais: (r.frais || "").replace("%", "").trim(), commentaire: r.commentaire || "", dateSignature: r.dateCreation || todayISO(), datePrelevement: "", transfertInterne: "non", fraisTransfert: "non", fichiers: [] }],
     };
     saveClients([...clients, nc]);
-    alert(`Fiche client créée ✓ (attribuée à ${u.prenom}) — retrouvez-la dans l'espace Clients.`);
+    alert(`Fiche client créée ✓ (attribuée à ${ownerU.prenom}) — retrouvez-la dans l'espace Clients.`);
   };
 
   const addMonth = () => {
@@ -1611,7 +1663,7 @@ function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me, clie
               </h2>
               <button className="btn ghost sm" onClick={() => addRows(u.id)}>+ 5 lignes</button>
             </div>
-            <table className="t">
+            <table className="t salest">
               <thead>
                 <tr>
                   <th style={{ width: "9%" }}>Date création</th>
@@ -1657,7 +1709,7 @@ function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me, clie
                       </select>
                     </td>
                     <td>
-                      {(r.nom || "").trim() && !r.mirrorOf && (
+                      {(r.nom || "").trim() && (
                         <button
                           onClick={() => createFromRow(u, r)}
                           title="Créer la fiche client + le contrat associé"
@@ -1755,9 +1807,10 @@ function PayePage({ view, sales, bordereaux, saveBordereaux }) {
           const tot = rows.reduce((s, r) => s + parseNum(r.remuneration), 0);
           return (
             <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setDetailMonth(null)}>
-              <div className="modal" style={{ maxWidth: 700, maxHeight: "85vh", overflowY: "auto" }}>
+              <div className="modal" style={{ maxWidth: 960, width: "min(960px, 94vw)", maxHeight: "88vh", overflowY: "auto" }}>
                 <h2>💶 Affaires de {monthLabel(detailMonth)} — {rows.length} ligne(s) · {fmtEUR(tot)}</h2>
-                <table className="t" style={{ marginTop: 12 }}>
+                <div style={{ overflowX: "auto" }}>
+                <table className="t nowrapt" style={{ marginTop: 12 }}>
                   <thead><tr><th>Date</th><th>Client</th><th>Type</th><th>Compagnie</th><th>Volume</th><th>Rémunération</th><th>Statut</th></tr></thead>
                   <tbody>
                     {rows.map((r) => (
@@ -1774,6 +1827,7 @@ function PayePage({ view, sales, bordereaux, saveBordereaux }) {
                     {rows.length === 0 && <tr><td colSpan={7} style={{ color: "#8593a8", padding: 14 }}>Aucune affaire ce mois-là.</td></tr>}
                   </tbody>
                 </table>
+                </div>
                 <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
                   <button className="btn ghost" onClick={() => setDetailMonth(null)}>Fermer</button>
                 </div>
@@ -1998,6 +2052,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
   const [monthFilter, setMonthFilter] = useState("all");
   const [viewMode, setViewMode] = useState("table"); // table | jour | semaine | mois
   const [showImport, setShowImport] = useState(false);
+  const [slotPrefill, setSlotPrefill] = useState(null); // créneau cliqué dans l'agenda
 
   /* Cloisonnement identique aux clients */
   const mine = me.isManager ? prospection : prospection.filter((p) => p.ownerId === me.id);
@@ -2234,6 +2289,12 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
           mode={viewMode}
           users={users} me={me}
           onOpen={(p) => { setEditEntry(p); setShowForm(true); }}
+          onDayOpen={() => setViewMode("jour")}
+          onCreateSlot={(dateIso, heure) => {
+            setEditEntry(null);
+            setSlotPrefill({ dateRdv: dateIso, heureRdv: heure, statut: "RDV pris" });
+            setShowForm(true);
+          }}
         />
       )}
 
@@ -2303,8 +2364,9 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
       {showForm && (
         <ProspectForm
           initial={editEntry}
+          prefill={slotPrefill}
           me={me} users={users}
-          onClose={() => { setShowForm(false); setEditEntry(null); }}
+          onClose={() => { setShowForm(false); setEditEntry(null); setSlotPrefill(null); }}
           onSave={save}
           onDelete={editEntry ? () => remove(editEntry) : null}
           onConvert={editEntry && !editEntry.convertedClientId ? () => convert(editEntry) : null}
@@ -2315,8 +2377,8 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
   );
 }
 
-function ProspectForm({ initial, me, users, onSave, onClose, onDelete, onConvert, onUnconvert }) {
-  const [f, setF] = useState(initial || emptyProspect(me.id));
+function ProspectForm({ initial, prefill, me, users, onSave, onClose, onDelete, onConvert, onUnconvert }) {
+  const [f, setF] = useState(initial || { ...emptyProspect(me.id), ...(prefill || {}) });
   const set = (k, v) => setF({ ...f, [k]: v });
   const showRdvFields = ["RDV pris", "RDV honoré", "RDV annulé", "RDV reporté", "Proposition envoyée", "Signé", "Perdu"].includes(f.statut);
   const showNoteRdv = ["RDV honoré", "Proposition envoyée", "Signé", "Perdu"].includes(f.statut);
@@ -2378,6 +2440,19 @@ function ProspectForm({ initial, me, users, onSave, onClose, onDelete, onConvert
         <div className="row" style={{ marginTop: 18, justifyContent: "space-between" }}>
           <div className="row">
             {onDelete && <button className="btn danger" onClick={onDelete}>Supprimer</button>}
+            {f.dateRdv && (
+              <button
+                className="btn ghost sm" style={{ alignSelf: "center" }}
+                onClick={() => window.open(gcalUrl({
+                  titre: `RDV prospection — ${(f.nom || "").toUpperCase()} ${f.prenom || ""}`,
+                  date: f.dateRdv, heure: f.heureRdv,
+                  details: `${f.profession || ""}${f.telephone ? " · Tél : " + f.telephone : ""}${f.commentaire ? "\n" + f.commentaire : ""}\n(CRM ELYON & Associés)`,
+                  lieu: f.ville || "",
+                }), "_blank")}
+              >
+                📆 Ajouter à Google Agenda
+              </button>
+            )}
             {onConvert && <button className="btn ghost" style={{ borderColor: GOLD, color: "#7a5c17" }} onClick={onConvert}>👥 Convertir en client</button>}
             {initial && initial.convertedClientId && <span className="badge b-gold" style={{ alignSelf: "center" }}>✓ Déjà converti en client</span>}
             {onUnconvert && <button className="btn ghost sm" style={{ borderColor: "#B3261E", color: "#B3261E", alignSelf: "center" }} onClick={onUnconvert}>↩️ Annuler la conversion</button>}
@@ -2543,18 +2618,20 @@ function HistoriqueCard({ client, update, me, users }) {
   );
 }
 
-/* ================= CALENDRIER DES RDV PROSPECTION ================= */
-/* Couleurs par commercial : Arzou vert foncé/vert d'eau, Simon vert clair, Quentin bleu clair, Signé = or */
+/* ================= CALENDRIER DES RDV PROSPECTION (façon Google Agenda) ================= */
 const RDV_OWNER_STYLE = {
-  arzou: { bg: "#d4ede6", border: "#1b6e5a" },
-  simon: { bg: "#e2f6df", border: "#3f9e4d" },
-  quentin: { bg: "#dceafa", border: "#1d6fb8" },
+  arzou: { bg: "#d4ede6", border: "#1b6e5a", text: "#0d4a3c" },
+  simon: { bg: "#e2f6df", border: "#3f9e4d", text: "#1d5c26" },
+  quentin: { bg: "#dceafa", border: "#1d6fb8", text: "#0d3f6e" },
 };
-const RDV_SIGNED_STYLE = { bg: "#f7e9c4", border: "#C9A24B" };
+const RDV_SIGNED_STYLE = { bg: "#f7e9c4", border: "#C9A24B", text: "#6b4e0e" };
 
-function RdvCalendar({ entries, mode, users, me, onOpen }) {
+function RdvCalendar({ entries, mode, users, me, onOpen, onDayOpen, onCreateSlot }) {
   const [ref, setRef] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
 
+  const H_START = 8, H_END = 20, HPX = 52; /* grille horaire 8h → 20h */
   const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const startOfWeek = (d) => { const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0); return x; };
   const today = isoOf(new Date());
@@ -2565,11 +2642,9 @@ function RdvCalendar({ entries, mode, users, me, onOpen }) {
   entries.forEach((p) => { (byDate[p.dateRdv] = byDate[p.dateRdv] || []).push(p); });
   Object.values(byDate).forEach((list) => list.sort((a, b) => (a.heureRdv || "").localeCompare(b.heureRdv || "")));
 
-  const ownerName = (p) => {
-    const u = users.find((x) => x.id === p.ownerId);
-    return u ? u.prenom : "?";
-  };
-  const pillStyle = (p) => (p.statut === "Signé" ? RDV_SIGNED_STYLE : (RDV_OWNER_STYLE[p.ownerId] || { bg: "#f2f5fa", border: NAVY2 }));
+  const ownerName = (p) => (users.find((x) => x.id === p.ownerId) || {}).prenom || "?";
+  const styleOf = (p) => (p.statut === "Signé" ? RDV_SIGNED_STYLE : (RDV_OWNER_STYLE[p.ownerId] || { bg: "#eef1f6", border: NAVY2, text: NAVY }));
+  const minutesOf = (heure) => { const [h, m] = (heure || "9:00").split(":").map(Number); return h * 60 + (m || 0); };
 
   const nav = (dir) => {
     const d = new Date(ref);
@@ -2579,94 +2654,153 @@ function RdvCalendar({ entries, mode, users, me, onOpen }) {
     setRef(d);
   };
 
-  const EventPill = ({ p, big }) => {
-    const st = pillStyle(p);
+  /* ---- Bloc d'événement positionné sur la grille horaire ---- */
+  const TimedEvent = ({ p, wide }) => {
+    const st = styleOf(p);
+    const top = ((minutesOf(p.heureRdv) - H_START * 60) / 60) * HPX;
     return (
       <div
-        onClick={() => onOpen(p)}
-        title={`${p.nom} ${p.prenom || ""} · ${p.statut} · pris par ${ownerName(p)}${p.commentaire ? " · " + p.commentaire : ""}`}
+        onClick={(e) => { e.stopPropagation(); onOpen(p); }}
+        title={`${p.heureRdv} · ${(p.nom || "").toUpperCase()} ${p.prenom || ""} · ${p.statut} · ${ownerName(p)}${p.commentaire ? "\n" + p.commentaire : ""}`}
         style={{
-          fontSize: big ? 14 : 12.5, padding: big ? "12px 14px" : "5px 8px", borderRadius: big ? 10 : 7,
-          marginBottom: big ? 10 : 4, lineHeight: 1.45, cursor: "pointer",
-          background: st.bg, borderLeft: `${big ? 4 : 3}px solid ${st.border}`,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: big ? "normal" : "nowrap",
+          position: "absolute", left: 3, right: 3, top: Math.max(0, top), height: HPX - 6,
+          background: st.bg, borderLeft: `4px solid ${st.border}`, borderRadius: 8,
+          padding: wide ? "5px 10px" : "3px 7px", cursor: "pointer", overflow: "hidden",
+          boxShadow: "0 1px 3px rgba(11,37,69,.12)", zIndex: 2,
         }}
       >
-        {p.heureRdv && <b style={{ color: NAVY }}>{p.heureRdv}</b>} {(p.nom || "").toUpperCase()} {p.prenom || ""}
-        {p.statut === "Signé" && " 🏆"}
-        <span style={{ color: "#5b6b82" }}> · {ownerName(p)}</span>
-        {big && (
-          <div style={{ fontSize: 12, color: "#5b6b82", marginTop: 3 }}>
-            {p.profession || "—"} {p.telephone && `· 📞 ${p.telephone}`} {p.ville && `· ${p.ville}`}
-            {p.commentaire && <div style={{ marginTop: 2 }}>💬 {p.commentaire}</div>}
+        <div style={{ fontSize: wide ? 13 : 11.5, fontWeight: 700, color: st.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {p.heureRdv} · {(p.nom || "").toUpperCase()} {p.prenom || ""} {p.statut === "Signé" && "🏆"}
+        </div>
+        <div style={{ fontSize: wide ? 11.5 : 10.5, color: st.text, opacity: 0.85, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {ownerName(p)}{p.profession ? " · " + p.profession : ""}{wide && p.telephone ? " · 📞 " + p.telephone : ""}
+        </div>
+      </div>
+    );
+  };
+
+  /* ---- Colonne d'un jour avec grille horaire cliquable ---- */
+  const DayColumn = ({ d, wide }) => {
+    const dIso = isoOf(d);
+    const list = (byDate[dIso] || []).filter((p) => p.heureRdv);
+    const noHour = (byDate[dIso] || []).filter((p) => !p.heureRdv);
+    const isToday = dIso === today;
+    const nowTop = isToday ? ((now.getHours() * 60 + now.getMinutes() - H_START * 60) / 60) * HPX : null;
+    return (
+      <div style={{ position: "relative", flex: 1, borderLeft: "1px solid #eef1f6", minWidth: 0 }}>
+        {/* lignes des heures + créneaux cliquables */}
+        {Array.from({ length: H_END - H_START }, (_, i) => (
+          <div
+            key={i}
+            onClick={() => onCreateSlot && onCreateSlot(dIso, `${String(H_START + i).padStart(2, "0")}:00`)}
+            title="Cliquer pour créer un RDV à ce créneau"
+            style={{ height: HPX, borderBottom: "1px solid #f0f3f8", cursor: onCreateSlot ? "pointer" : "default" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#fafcff")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          />
+        ))}
+        {list.map((p) => <TimedEvent key={p.id} p={p} wide={wide} />)}
+        {noHour.length > 0 && (
+          <div style={{ position: "absolute", top: 0, left: 3, right: 3, zIndex: 3 }}>
+            {noHour.map((p) => {
+              const st = styleOf(p);
+              return (
+                <div key={p.id} onClick={(e) => { e.stopPropagation(); onOpen(p); }}
+                  style={{ background: st.bg, borderLeft: `4px solid ${st.border}`, borderRadius: 6, fontSize: 10.5, padding: "2px 6px", marginBottom: 2, cursor: "pointer", color: st.text, fontWeight: 700 }}>
+                  {(p.nom || "").toUpperCase()} (heure ?)
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {nowTop !== null && nowTop >= 0 && nowTop <= (H_END - H_START) * HPX && (
+          <div style={{ position: "absolute", left: 0, right: 0, top: nowTop, zIndex: 4, pointerEvents: "none" }}>
+            <div style={{ height: 2, background: "#ea4335" }} />
+            <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#ea4335", marginTop: -6 }} />
           </div>
         )}
       </div>
     );
   };
 
-  /* ---- En-tête de navigation ---- */
+  const TimeGutter = () => (
+    <div style={{ width: 46, flexShrink: 0 }}>
+      {Array.from({ length: H_END - H_START }, (_, i) => (
+        <div key={i} style={{ height: HPX, fontSize: 10.5, color: "#8593a8", textAlign: "right", paddingRight: 7, transform: "translateY(-6px)" }}>
+          {H_START + i}:00
+        </div>
+      ))}
+    </div>
+  );
+
+  /* ---- En-tête ---- */
   let label;
-  if (mode === "jour") {
-    label = `${DAYS_FULL[(ref.getDay() + 6) % 7]} ${fmtDate(isoOf(ref))}`;
-  } else if (mode === "semaine") {
+  if (mode === "jour") label = `${DAYS_FULL[(ref.getDay() + 6) % 7]} ${ref.getDate()} ${MONTH_NAMES[ref.getMonth()].toLowerCase()} ${ref.getFullYear()}`;
+  else if (mode === "semaine") {
     const s = startOfWeek(ref); const e = new Date(s); e.setDate(e.getDate() + 6);
-    label = `Semaine du ${fmtDate(isoOf(s))} au ${fmtDate(isoOf(e))}`;
-  } else {
-    label = monthLabel(`${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}`);
-  }
+    label = `${s.getDate()} ${MONTH_NAMES[s.getMonth()].toLowerCase().slice(0, 4)}. – ${e.getDate()} ${MONTH_NAMES[e.getMonth()].toLowerCase().slice(0, 4)}. ${e.getFullYear()}`;
+  } else label = `${MONTH_NAMES[ref.getMonth()]} ${ref.getFullYear()}`;
 
   const legend = (
-    <div className="row" style={{ marginTop: 12, flexWrap: "wrap", fontSize: 11.5, color: "#5b6b82" }}>
+    <div className="row" style={{ marginTop: 12, flexWrap: "wrap", fontSize: 11.5 }}>
       {users.map((u) => {
-        const st = RDV_OWNER_STYLE[u.id] || { bg: "#f2f5fa", border: NAVY2 };
-        return <span key={u.id} style={{ background: st.bg, borderLeft: `3px solid ${st.border}`, padding: "2px 8px", borderRadius: 4 }}>{u.prenom}</span>;
+        const st = RDV_OWNER_STYLE[u.id] || { bg: "#eef1f6", border: NAVY2 };
+        return <span key={u.id} style={{ background: st.bg, borderLeft: `3px solid ${st.border}`, padding: "2px 9px", borderRadius: 4, fontWeight: 600 }}>{u.prenom}</span>;
       })}
-      <span style={{ background: RDV_SIGNED_STYLE.bg, borderLeft: `3px solid ${RDV_SIGNED_STYLE.border}`, padding: "2px 8px", borderRadius: 4 }}>🏆 Signé</span>
+      <span style={{ background: RDV_SIGNED_STYLE.bg, borderLeft: `3px solid ${RDV_SIGNED_STYLE.border}`, padding: "2px 9px", borderRadius: 4, fontWeight: 600 }}>🏆 Signé</span>
+      <span style={{ color: "#8593a8" }}>· Cliquez sur un créneau vide pour créer un RDV</span>
     </div>
   );
 
   return (
-    <div className="card">
+    <div className="card" style={{ padding: 16 }}>
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 style={{ fontSize: 16 }}>📅 {label}</h2>
+        <h2 style={{ fontSize: 17, textTransform: "capitalize" }}>{label}</h2>
         <div className="row">
-          <button className="btn ghost sm" onClick={() => nav(-1)}>◀</button>
+          <button className="btn ghost sm" onClick={() => nav(-1)}>‹</button>
           <button className="btn ghost sm" onClick={() => { const d = new Date(); d.setHours(0, 0, 0, 0); setRef(d); }}>Aujourd'hui</button>
-          <button className="btn ghost sm" onClick={() => nav(1)}>▶</button>
+          <button className="btn ghost sm" onClick={() => nav(1)}>›</button>
         </div>
       </div>
 
-      {mode === "jour" && (() => {
-        const list = byDate[isoOf(ref)] || [];
-        return (
-          <div>
-            {list.length === 0 && <div style={{ color: "#8593a8", fontSize: 13.5 }}>Aucun rendez-vous ce jour-là.</div>}
-            {list.map((p) => <EventPill key={p.id} p={p} big />)}
-          </div>
-        );
-      })()}
-
-      {mode === "semaine" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
-          {Array.from({ length: 7 }, (_, i) => {
-            const d = startOfWeek(ref); d.setDate(d.getDate() + i);
-            const dIso = isoOf(d);
-            const list = byDate[dIso] || [];
-            return (
-              <div key={i} style={{ border: "1px solid #e3e8f0", borderRadius: 12, minHeight: 190, padding: 10, background: dIso === today ? "#fdf9f0" : i >= 5 ? "#fafbfd" : "#fff", borderColor: dIso === today ? GOLD : "#e3e8f0", borderWidth: dIso === today ? 2 : 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: dIso === today ? "#7a5c17" : NAVY, marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
-                  <span>{DAYS[i]} {d.getDate()}</span>
-                  {list.length > 0 && <span style={{ background: NAVY, color: "#fff", borderRadius: 10, fontSize: 10.5, padding: "1px 7px" }}>{list.length}</span>}
-                </div>
-                {list.map((p) => <EventPill key={p.id} p={p} />)}
-                {list.length === 0 && <div style={{ fontSize: 11, color: "#c3ccd8" }}>—</div>}
-              </div>
-            );
-          })}
+      {/* ============ VUE JOUR : grille horaire pleine largeur ============ */}
+      {mode === "jour" && (
+        <div style={{ display: "flex" }}>
+          <TimeGutter />
+          <DayColumn d={ref} wide />
         </div>
       )}
 
+      {/* ============ VUE SEMAINE : grille horaire 7 jours ============ */}
+      {mode === "semaine" && (
+        <div>
+          <div style={{ display: "flex", marginBottom: 6 }}>
+            <div style={{ width: 46, flexShrink: 0 }} />
+            {Array.from({ length: 7 }, (_, i) => {
+              const d = startOfWeek(ref); d.setDate(d.getDate() + i);
+              const isToday = isoOf(d) === today;
+              return (
+                <div key={i} style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "#8593a8", textTransform: "uppercase" }}>{DAYS[i]}</div>
+                  <div style={{
+                    fontSize: 17, fontWeight: 700, width: 34, height: 34, lineHeight: "34px", margin: "2px auto 0",
+                    borderRadius: "50%", background: isToday ? NAVY : "transparent", color: isToday ? "#fff" : NAVY,
+                  }}>{d.getDate()}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", border: "1px solid #eef1f6", borderRadius: 10, overflow: "hidden" }}>
+            <TimeGutter />
+            {Array.from({ length: 7 }, (_, i) => {
+              const d = startOfWeek(ref); d.setDate(d.getDate() + i);
+              return <DayColumn key={i} d={new Date(d)} />;
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ============ VUE MOIS : grille type Google ============ */}
       {mode === "mois" && (() => {
         const first = new Date(ref.getFullYear(), ref.getMonth(), 1);
         const offset = (first.getDay() + 6) % 7;
@@ -2674,23 +2808,46 @@ function RdvCalendar({ entries, mode, users, me, onOpen }) {
         const cells = Array.from({ length: 42 }, (_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d; });
         return (
           <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 6 }}>
-              {DAYS.map((d) => <div key={d} style={{ fontSize: 11.5, fontWeight: 700, color: "#8593a8", textAlign: "center", textTransform: "uppercase", letterSpacing: 1 }}>{d}</div>)}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 4 }}>
+              {DAYS.map((d) => <div key={d} style={{ fontSize: 11, fontWeight: 700, color: "#8593a8", textAlign: "center", textTransform: "uppercase", letterSpacing: 1 }}>{d}</div>)}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", border: "1px solid #eef1f6", borderRadius: 10, overflow: "hidden" }}>
               {cells.map((d, i) => {
                 const dIso = isoOf(d);
                 const inMonth = d.getMonth() === ref.getMonth();
+                const isToday = dIso === today;
                 const list = byDate[dIso] || [];
                 return (
-                  <div key={i} style={{
-                    border: "1px solid #e3e8f0", borderRadius: 10, minHeight: 106, padding: 7,
-                    background: dIso === today ? "#fdf9f0" : inMonth ? "#fff" : "#f7f8fb",
-                    borderColor: dIso === today ? GOLD : "#e3e8f0", opacity: inMonth ? 1 : 0.55,
-                  }}>
-                    <div style={{ fontSize: 12.5, fontWeight: dIso === today ? 900 : 700, color: dIso === today ? "#7a5c17" : NAVY, marginBottom: 5 }}>{d.getDate()}{list.length > 0 && <span style={{ float: "right", background: GOLD, color: "#fff", borderRadius: 9, fontSize: 10, padding: "0 6px" }}>{list.length}</span>}</div>
-                    {list.slice(0, 3).map((p) => <EventPill key={p.id} p={p} />)}
-                    {list.length > 3 && <div style={{ fontSize: 10.5, color: "#8593a8" }}>+ {list.length - 3} autre(s)</div>}
+                  <div key={i}
+                    onClick={() => { setRef(new Date(d)); onDayOpen && onDayOpen(); }}
+                    title="Cliquer pour ouvrir la journée"
+                    style={{
+                      minHeight: 112, padding: "5px 5px 3px", cursor: "pointer",
+                      borderRight: (i % 7) < 6 ? "1px solid #f0f3f8" : "none",
+                      borderBottom: i < 35 ? "1px solid #f0f3f8" : "none",
+                      background: inMonth ? "#fff" : "#f8fafc",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#fafcff")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = inMonth ? "#fff" : "#f8fafc")}
+                  >
+                    <div style={{
+                      fontSize: 12, fontWeight: 700, width: 24, height: 24, lineHeight: "24px", textAlign: "center",
+                      borderRadius: "50%", margin: "0 auto 3px",
+                      background: isToday ? NAVY : "transparent", color: isToday ? "#fff" : inMonth ? NAVY : "#b4becc",
+                    }}>{d.getDate()}</div>
+                    {list.slice(0, 3).map((p) => {
+                      const st = styleOf(p);
+                      return (
+                        <div key={p.id}
+                          onClick={(e) => { e.stopPropagation(); onOpen(p); }}
+                          title={`${p.heureRdv || ""} ${(p.nom || "").toUpperCase()} · ${p.statut} · ${ownerName(p)}`}
+                          style={{ background: st.bg, borderRadius: 5, fontSize: 10.5, fontWeight: 600, color: st.text, padding: "1px 5px", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: st.border, marginRight: 4, verticalAlign: "middle" }} />
+                          {p.heureRdv && <b>{p.heureRdv}</b>} {(p.nom || "").toUpperCase()}
+                        </div>
+                      );
+                    })}
+                    {list.length > 3 && <div style={{ fontSize: 10, color: "#5b6b82", fontWeight: 600, paddingLeft: 3 }}>+ {list.length - 3} autres</div>}
                   </div>
                 );
               })}
@@ -2701,7 +2858,7 @@ function RdvCalendar({ entries, mode, users, me, onOpen }) {
 
       {entries.length === 0 && (
         <div style={{ color: "#8593a8", fontSize: 13.5, marginTop: 10 }}>
-          Aucun RDV planifié : renseignez la « date du RDV » sur vos fiches de prospection pour les voir apparaître ici.
+          Aucun RDV planifié : renseignez la « date du RDV » sur vos fiches, ou cliquez sur un créneau pour en créer un.
         </div>
       )}
       {legend}
@@ -2921,8 +3078,17 @@ function RdvClientForm({ client, me, onClose, onSave }) {
         </div>
         <div className="row" style={{ marginTop: 16, justifyContent: "flex-end" }}>
           <button className="btn ghost" onClick={onClose}>Annuler</button>
-          <button className="btn gold" onClick={() => onSave({ id: uid(), clientId: client.id, ownerId: me.id, ...f, done: false, createdAt: todayISO() })}>
-            Planifier — un rappel s'affichera 10 min avant
+          <button className="btn gold" onClick={() => {
+            onSave({ id: uid(), clientId: client.id, ownerId: me.id, ...f, done: false, createdAt: todayISO() });
+            if (confirm("RDV planifié ✓ (rappel 10 min avant dans le CRM)\n\nL'ajouter aussi à votre Google Agenda ?")) {
+              window.open(gcalUrl({
+                titre: `RDV client — ${client.nom.toUpperCase()} ${client.prenom}`,
+                date: f.date, heure: f.heure,
+                details: `${f.motif}${f.note ? "\n" + f.note : ""}\n(CRM ELYON & Associés)`,
+              }), "_blank");
+            }
+          }}>
+            Planifier le rendez-vous
           </button>
         </div>
       </div>
