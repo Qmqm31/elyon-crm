@@ -69,7 +69,7 @@ const ALERT_TYPES = [
   "Autre",
 ];
 const BAREMES = ["Manager", "Commercial"];
-const STATUTS = ["En attente", "Payé", "Annulé"];
+const STATUTS = ["En attente", "Payé", "Annulé", "Décommissionné"];
 
 /* ---- Prospection ---- */
 const PROSPECTION_STATUTS = [
@@ -308,12 +308,13 @@ const CSS = `
   .lbl { font-size: 12px; font-weight: 600; color:#41506a; display:block; margin-bottom:4px; letter-spacing:.3px; }
   .fgrid { display:grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: 12px; }
   table.t { width:100%; border-collapse: collapse; font-size: 13px; }
-  table.t th { background:${NAVY}; color:#fff; padding: 9px 8px; text-align:center; font-weight:600; font-size:12px; letter-spacing:.4px; white-space: nowrap; }
+  table.t th { background:${NAVY}; color:#fff; padding: 8px 7px; text-align:center; font-weight:600; font-size:11.5px; letter-spacing:.5px; text-transform:uppercase; white-space: nowrap; }
   table.t th:first-child { border-radius: 8px 0 0 0; } table.t th:last-child { border-radius: 0 8px 0 0; }
-  table.t td { border-bottom:1px solid #edf1f6; padding: 4px 6px; text-align:center; }
-  table.t input, table.t select { width:100%; border:1px solid transparent; background:transparent; padding: 6px 4px; font-size:13px; text-align:center; border-radius:6px; color:inherit; }
+  table.t td { border-bottom:1px solid #edf1f6; padding: 3px 5px; text-align:center; font-size:12.5px; }
+  table.t tbody tr:not(.paye):not(.annule):not(.decom):not(.totrow):not(.nprow):hover td { background:#f6f8fb; }
+  table.t input, table.t select { width:100%; border:1px solid transparent; background:transparent; padding: 4px 3px; font-size:12.5px; text-align:center; border-radius:6px; color:inherit; }
   table.t input:focus, table.t select:focus { background:#fff; border-color:${GOLD}; outline:none; }
-  tr.paye td { background:#e4f3e6; } tr.annule td { background:#fbe4e2; }
+  tr.paye td { background:#e4f3e6; } tr.annule td { background:#fbe4e2; } tr.decom td { background:#f8d0cc; color:#7a1410; font-weight:600; }
   .totrow td { background:${NAVY}; color:#fff; font-weight:700; padding: 10px 8px; }
   .nprow td { background:#fdf6e7; font-weight:600; }
   .modal-bg { position:fixed; inset:0; background:rgba(11,37,69,.55); display:flex; align-items:flex-start; justify-content:center; padding: 40px 16px; z-index:50; overflow:auto; }
@@ -492,7 +493,7 @@ export default function App() {
     ["messagerie", "✉️ Messagerie"],
     ["paye", "💶 Ma rémunération"],
     ["docs", "📁 Documents"],
-    ...(me.isManager ? [["equipe", "🧑‍💼 Mon équipe"], ["corbeille", "🗑️ Corbeille"]] : []),
+    ...(me.isManager ? [["decom", "📉 Décommissions"], ["equipe", "🧑‍💼 Mon équipe"], ["corbeille", "🗑️ Corbeille"]] : []),
   ];
 
   return (
@@ -594,7 +595,8 @@ export default function App() {
             remove={() => { if (confirm("Mettre cette fiche client à la corbeille ? (restaurable pendant 30 jours)")) { toTrash("client", clients.find((c) => c.id === openClient)); saveClients(clients.filter((c) => c.id !== openClient)); setOpenClient(null); } }}
           />
         )}
-        {page === "ventes" && <SalesPage sales={sales} saveSales={saveSales} users={users} objectifs={objectifs} saveObjectifs={saveObjectifs} me={me} />}
+        {page === "ventes" && <SalesPage sales={sales} saveSales={saveSales} users={users} objectifs={objectifs} saveObjectifs={saveObjectifs} me={me} clients={clients} saveClients={saveClients} />}
+        {page === "decom" && me.isManager && <DecomPage sales={sales} users={users} />}
         {page === "paye" && <PayePage view={view} sales={sales} bordereaux={bordereaux} saveBordereaux={saveBordereaux} />}
         {page === "docs" && <DocsPage docs={docs} saveDocs={saveDocs} toTrash={toTrash} />}
         {page === "equipe" && me.isManager && <TeamPage users={users} saveUsers={saveUsers} sales={sales} saveSales={saveSales} me={me} />}
@@ -797,14 +799,15 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, sa
       </div>
 
       <div className="kpis" style={{ marginBottom: 20 }}>
-        <div className="kpi"><div className="n">{stats.clients}</div><div className="l">Clients actifs</div></div>
-        <div className="kpi"><div className="n">{stats.contrats}</div><div className="l">Contrats</div></div>
-        <div className="kpi"><div className="n">{stats.PER}</div><div className="l">PER</div></div>
-        <div className="kpi"><div className="n">{stats["Assurance vie"]}</div><div className="l">Assurances vie</div></div>
-        <div className="kpi"><div className="n">{stats["Prévoyance"]}</div><div className="l">Prévoyances</div></div>
-        <div className="kpi"><div className="n">{stats["Protection juridique"]}</div><div className="l">Protections juridiques</div></div>
-        <div className="kpi"><div className="n">{stats["Mutuelle"]}</div><div className="l">Mutuelles</div></div>
-        <div className="kpi"><div className="n">{stats["Transfert"]}</div><div className="l">Transferts</div></div>
+        {[
+          [stats.clients, "Clients actifs"], [stats.contrats, "Contrats"], [stats.PER, "PER"],
+          [stats["Assurance vie"], "Assurances vie"], [stats["Prévoyance"], "Prévoyances"],
+          [stats["Protection juridique"], "Protections juridiques"], [stats["Mutuelle"], "Mutuelles"], [stats["Transfert"], "Transferts"],
+        ].map(([n, l]) => (
+          <div key={l} className="kpi" onClick={() => setShowContrats(true)} style={{ cursor: "pointer" }} title="Cliquer pour voir les contrats réalisés">
+            <div className="n">{n}</div><div className="l">{l}</div>
+          </div>
+        ))}
       </div>
 
       <div className="card">
@@ -969,6 +972,7 @@ function ClientsPage({ clients, saveClients, me, users, openClient }) {
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState("");
   const [ownerFilter, setOwnerFilter] = useState("all");
+  const [sortMode, setSortMode] = useState("az");
 
   /* Cloisonnement : un commercial ne voit QUE son portefeuille. Le manager voit tout. */
   const ownerOf = (c) => c.createdBy || "quentin";
@@ -976,9 +980,13 @@ function ClientsPage({ clients, saveClients, me, users, openClient }) {
   const scoped = me.isManager && ownerFilter !== "all"
     ? myPortfolio.filter((c) => ownerOf(c) === ownerFilter)
     : myPortfolio;
-  const filtered = scoped.filter((c) =>
-    (c.nom + " " + c.prenom + " " + (c.profession || "")).toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = scoped
+    .filter((c) => (c.nom + " " + c.prenom + " " + (c.profession || "")).toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (sortMode === "recent") return (b.createdAt || "").localeCompare(a.createdAt || "");
+      if (sortMode === "profession") return (a.profession || "zzz").localeCompare(b.profession || "zzz", "fr");
+      return (a.nom || "").localeCompare(b.nom || "", "fr"); /* A → Z par défaut */
+    });
   const ownerName = (c) => {
     const u = users.find((x) => x.id === ownerOf(c));
     return u ? `${u.prenom} ${u.nom}` : "—";
@@ -996,6 +1004,11 @@ function ClientsPage({ clients, saveClients, me, users, openClient }) {
           </div>
         </div>
         <div className="row">
+          <select className="sel" value={sortMode} onChange={(e) => setSortMode(e.target.value)}>
+            <option value="az">Tri : Nom A → Z</option>
+            <option value="recent">Tri : Plus récents</option>
+            <option value="profession">Tri : Profession</option>
+          </select>
           {me.isManager && (
             <select className="sel" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
               <option value="all">Tous les conseillers</option>
@@ -1051,9 +1064,9 @@ function ClientForm({ initial, onSave, onClose }) {
           <Field label="Nom *"><input className="in" value={f.nom} onChange={(e) => set("nom", e.target.value)} /></Field>
           <Field label="Prénom *"><input className="in" value={f.prenom} onChange={(e) => set("prenom", e.target.value)} /></Field>
           <Field label="Date de naissance"><input className="in" type="date" value={f.dateNaissance} onChange={(e) => set("dateNaissance", e.target.value)} /></Field>
-          <Field label="Téléphone"><input className="in" value={f.telephone} onChange={(e) => set("telephone", e.target.value)} /></Field>
+          <Field label="Téléphone"><input className="in" value={f.telephone} onChange={(e) => set("telephone", e.target.value.replace(/\s/g, ""))} /></Field>
           <Field label="E-mail"><input className="in" value={f.email} onChange={(e) => set("email", e.target.value)} /></Field>
-          <Field label="Profession"><input className="in" value={f.profession} onChange={(e) => set("profession", e.target.value)} /></Field>
+          <Field label="Profession"><input className="in" value={f.profession} onChange={(e) => set("profession", e.target.value.toUpperCase())} style={{ textTransform: "uppercase" }} /></Field>
           <Field label="Revenus imposables (€)"><input className="in" value={f.revenus} onChange={(e) => set("revenus", e.target.value)} placeholder="ex : 48 000" /></Field>
           <Field label="Situation matrimoniale">
             <select className="sel" value={f.situation} onChange={(e) => set("situation", e.target.value)}>
@@ -1157,6 +1170,7 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
             onEdit={() => { setEditContract(k); setShowContract(true); }}
             onDelete={() => { if (confirm("Supprimer ce contrat ?")) update({ ...client, contrats: client.contrats.filter((x) => x.id !== k.id) }); }}
             onFiles={(files) => update({ ...client, contrats: client.contrats.map((x) => (x.id === k.id ? { ...x, fichiers: [...(x.fichiers || []), ...files] } : x)) })}
+            onQuick={(patch) => update({ ...client, contrats: client.contrats.map((x) => (x.id === k.id ? { ...x, ...patch } : x)) })}
             onFileDelete={(f) => { sDel(`crm-file-${f.id}`); update({ ...client, contrats: client.contrats.map((x) => (x.id === k.id ? { ...x, fichiers: x.fichiers.filter((y) => y.id !== f.id) } : x)) }); }}
           />
         ))}
@@ -1242,8 +1256,18 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
   );
 }
 
-function ContractCard({ contract: k, onEdit, onDelete, onFiles, onFileDelete }) {
+function ContractCard({ contract: k, onEdit, onDelete, onFiles, onFileDelete, onQuick }) {
   const nf = nextFollowUp(k.dateSignature);
+  const cycleTransfert = () => {
+    const next = { "": "En cours", "En cours": "Fait", "Fait": "" }[k.transfertEtat || ""];
+    onQuick({ transfertEtat: next });
+  };
+  const cycleEspace = () => {
+    const next = { "": "Oui", "Oui": "Non", "Non": "" }[k.espaceClient || ""];
+    onQuick({ espaceClient: next });
+  };
+  const tColor = k.transfertEtat === "Fait" ? "#1b7a3d" : k.transfertEtat === "En cours" ? "#d97706" : "#8593a8";
+  const eColor = k.espaceClient === "Oui" ? "#1b7a3d" : k.espaceClient === "Non" ? "#B3261E" : "#8593a8";
   return (
     <div style={{ border: "1px solid #e3e8f0", borderRadius: 10, padding: 16, marginBottom: 12, borderLeft: `4px solid ${GOLD}` }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
@@ -1252,6 +1276,18 @@ function ContractCard({ contract: k, onEdit, onDelete, onFiles, onFileDelete }) 
           <span className="badge b-grey" style={{ marginLeft: 8 }}>N° {k.numero || "—"}</span>
         </div>
         <div className="row">
+          <button
+            className="btn ghost sm" onClick={cycleTransfert} title="Cliquer pour changer"
+            style={{ borderColor: tColor, color: tColor, fontWeight: 600 }}
+          >
+            🔁 Transfert : {k.transfertEtat || "—"}
+          </button>
+          <button
+            className="btn ghost sm" onClick={cycleEspace} title="Cliquer pour changer"
+            style={{ borderColor: eColor, color: eColor, fontWeight: 600 }}
+          >
+            🖥️ Espace client : {k.espaceClient || "—"}
+          </button>
           <button className="btn ghost sm" onClick={onEdit}>Modifier</button>
           <button className="btn danger sm" onClick={onDelete}>Supprimer</button>
         </div>
@@ -1366,10 +1402,34 @@ function AlertForm({ onSave, onClose }) {
 }
 
 /* ================= VENTES ÉQUIPE ================= */
-function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me }) {
+function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me, clients, saveClients }) {
   const months = Object.keys(sales).sort();
   const [month, setMonth] = useState(months[months.length - 1]);
   const [showObj, setShowObj] = useState(false);
+
+  /* Créer une fiche client + le contrat associé depuis une ligne du tableau */
+  const createFromRow = (u, r) => {
+    const words = (r.nom || "").trim().split(/\s+/);
+    const nomP = words[0] || "";
+    const prenomP = words.slice(1).join(" ");
+    const doublon = clients.find((c) => (c.nom || "").trim().toLowerCase() === nomP.toLowerCase() && (c.prenom || "").trim().toLowerCase() === prenomP.toLowerCase());
+    if (doublon) {
+      if (!confirm(`Un client « ${doublon.nom.toUpperCase()} ${doublon.prenom} » existe déjà. Lui AJOUTER ce contrat ?`)) return;
+      const contrat = { id: uid(), type: r.type || "", compagnie: r.compagnie || "", numero: r.ref || "", montant: "", frais: (r.frais || "").replace("%", "").trim(), commentaire: r.commentaire || "", dateSignature: r.dateCreation || todayISO(), datePrelevement: "", transfertInterne: "non", fraisTransfert: "non", fichiers: [] };
+      saveClients(clients.map((c) => (c.id === doublon.id ? { ...c, contrats: [...(c.contrats || []), contrat] } : c)));
+      alert("Contrat ajouté à la fiche existante ✓");
+      return;
+    }
+    if (!confirm(`Créer la fiche client « ${nomP.toUpperCase()} ${prenomP} » avec son contrat ${r.type || ""} ${r.compagnie || ""} ?`)) return;
+    const nc = {
+      id: uid(), nom: nomP, prenom: prenomP, profession: "", telephone: "", email: "",
+      dateNaissance: "", revenus: "", situation: "Célibataire",
+      createdBy: u.id, createdAt: todayISO(), alertes: [],
+      contrats: [{ id: uid(), type: r.type || "", compagnie: r.compagnie || "", numero: r.ref || "", montant: "", frais: (r.frais || "").replace("%", "").trim(), commentaire: r.commentaire || "", dateSignature: r.dateCreation || todayISO(), datePrelevement: "", transfertInterne: "non", fraisTransfert: "non", fichiers: [] }],
+    };
+    saveClients([...clients, nc]);
+    alert(`Fiche client créée ✓ (attribuée à ${u.prenom}) — retrouvez-la dans l'espace Clients.`);
+  };
 
   const addMonth = () => {
     const last = months[months.length - 1];
@@ -1565,13 +1625,14 @@ function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me }) {
                   <th>Volume</th>
                   <th>Rémunération</th>
                   <th>Statut</th>
+                  <th style={{ width: 34 }}></th>
                 </tr>
               </thead>
               <tbody>
                 {data.rows.map((r) => (
-                  <tr key={r.id} className={r.statut === "Payé" ? "paye" : r.statut === "Annulé" ? "annule" : ""} style={r.mirrorOf ? { background: "#fdf9f0" } : undefined} title={r.mirrorOf ? "Ligne recopiée automatiquement depuis le tableau d'un commercial — saisissez votre rémunération" : undefined}>
+                  <tr key={r.id} className={r.statut === "Payé" ? "paye" : r.statut === "Annulé" ? "annule" : r.statut === "Décommissionné" ? "decom" : ""} style={r.mirrorOf ? { background: "#fdf9f0" } : undefined} title={r.mirrorOf ? "Ligne recopiée automatiquement depuis le tableau d'un commercial — saisissez votre rémunération" : undefined}>
                     <td><input type="date" value={r.dateCreation || ""} onChange={(e) => updateCell(u.id, r.id, "dateCreation", e.target.value)} style={{ fontSize: 12 }} /></td>
-                    <td><input value={r.nom} onChange={(e) => updateCell(u.id, r.id, "nom", e.target.value)} /></td>
+                    <td><input value={r.nom} onChange={(e) => updateCell(u.id, r.id, "nom", e.target.value)} style={{ fontWeight: 700 }} /></td>
                     <td>
                       <select value={r.type} onChange={(e) => updateCell(u.id, r.id, "type", e.target.value)}>
                         <option value=""></option>
@@ -1595,17 +1656,26 @@ function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me }) {
                         {STATUTS.map((s) => <option key={s}>{s}</option>)}
                       </select>
                     </td>
+                    <td>
+                      {(r.nom || "").trim() && !r.mirrorOf && (
+                        <button
+                          onClick={() => createFromRow(u, r)}
+                          title="Créer la fiche client + le contrat associé"
+                          style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 15 }}
+                        >👤➕</button>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 <tr className="totrow">
                   <td colSpan={8} style={{ textAlign: "right" }}>TOTAL {monthLabel(month).toUpperCase()}</td>
                   <td>{fmtEUR(totVol)}</td>
                   <td>{fmtEUR(totRem)}</td>
-                  <td></td>
+                  <td colSpan={2}></td>
                 </tr>
                 <tr className="nprow">
                   <td colSpan={2} style={{ textAlign: "right", paddingRight: 10 }}>AFFAIRES NON PAYÉES</td>
-                  <td colSpan={9} style={{ fontSize: 13 }}>
+                  <td colSpan={10} style={{ fontSize: 13 }}>
                     {(() => {
                       const enAttente = data.rows.filter((r) => (r.nom || "").trim() && r.statut === "En attente");
                       if (enAttente.length === 0) return <span style={{ color: "#8593a8" }}>0 — tout est payé ou annulé ✓</span>;
@@ -1633,6 +1703,7 @@ function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me }) {
 /* ================= RÉMUNÉRATION & BORDEREAUX ================= */
 function PayePage({ view, sales, bordereaux, saveBordereaux }) {
   const months = Object.keys(sales).sort();
+  const [detailMonth, setDetailMonth] = useState(null); // clic sur une colonne → détail des affaires
   const data = months.map((m) => ({
     mois: monthLabel(m).replace(" 20", " '"),
     key: m,
@@ -1665,7 +1736,7 @@ function PayePage({ view, sales, bordereaux, saveBordereaux }) {
       </div>
 
       <div className="card" style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 17, marginBottom: 14 }}>📈 Évolution des payes</h2>
+        <h2 style={{ fontSize: 17, marginBottom: 14 }}>📈 Évolution des payes <span style={{ fontSize: 12, color: "#8593a8", fontWeight: 400 }}>— cliquez sur une colonne pour voir les affaires du mois</span></h2>
         <div style={{ width: "100%", height: 300 }}>
           <ResponsiveContainer>
             <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -1673,11 +1744,43 @@ function PayePage({ view, sales, bordereaux, saveBordereaux }) {
               <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "#5b6b82" }} />
               <YAxis tick={{ fontSize: 11, fill: "#5b6b82" }} tickFormatter={(v) => v.toLocaleString("fr-FR")} />
               <Tooltip formatter={(v) => [fmtEUR(v), "Rémunération"]} />
-              <Bar dataKey="paye" fill={NAVY} radius={[6, 6, 0, 0]}>
+              <Bar dataKey="paye" fill={NAVY} radius={[6, 6, 0, 0]} cursor="pointer" onClick={(d) => d && (d.key || (d.payload && d.payload.key)) && setDetailMonth(d.key || d.payload.key)}>
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
+
+        {detailMonth && (() => {
+          const rows = ((sales[detailMonth] || {})[view.id]?.rows || []).filter((r) => (r.nom || "").trim());
+          const tot = rows.reduce((s, r) => s + parseNum(r.remuneration), 0);
+          return (
+            <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setDetailMonth(null)}>
+              <div className="modal" style={{ maxWidth: 700, maxHeight: "85vh", overflowY: "auto" }}>
+                <h2>💶 Affaires de {monthLabel(detailMonth)} — {rows.length} ligne(s) · {fmtEUR(tot)}</h2>
+                <table className="t" style={{ marginTop: 12 }}>
+                  <thead><tr><th>Date</th><th>Client</th><th>Type</th><th>Compagnie</th><th>Volume</th><th>Rémunération</th><th>Statut</th></tr></thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.id} className={r.statut === "Payé" ? "paye" : r.statut === "Annulé" ? "annule" : r.statut === "Décommissionné" ? "decom" : ""}>
+                        <td style={{ fontSize: 12 }}>{fmtDate(r.dateCreation)}</td>
+                        <td><b>{r.nom}</b></td>
+                        <td style={{ fontSize: 12 }}>{r.type}</td>
+                        <td style={{ fontSize: 12 }}>{r.compagnie}</td>
+                        <td style={{ fontSize: 12 }}>{r.volume}</td>
+                        <td style={{ fontSize: 12 }}><b>{r.remuneration}</b></td>
+                        <td style={{ fontSize: 12 }}>{r.statut}</td>
+                      </tr>
+                    ))}
+                    {rows.length === 0 && <tr><td colSpan={7} style={{ color: "#8593a8", padding: 14 }}>Aucune affaire ce mois-là.</td></tr>}
+                  </tbody>
+                </table>
+                <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
+                  <button className="btn ghost" onClick={() => setDetailMonth(null)}>Fermer</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="card">
@@ -1701,11 +1804,17 @@ function PayePage({ view, sales, bordereaux, saveBordereaux }) {
 /* ================= DOCUMENTS ================= */
 function DocsPage({ docs, saveDocs, toTrash }) {
   const [newName, setNewName] = useState("");
+  const [search, setSearch] = useState("");
   const addFolder = () => {
     if (!newName.trim()) return;
     saveDocs([...docs, { id: uid(), name: newName.trim(), files: [] }]);
     setNewName("");
   };
+  /* Recherche par mots-clés : dans le nom du dossier ET les noms de fichiers */
+  const q = search.trim().toLowerCase();
+  const visibleDocs = !q ? docs : docs.filter((d) =>
+    d.name.toLowerCase().includes(q) || (d.files || []).some((f) => (f.name || "").toLowerCase().includes(q))
+  );
   return (
     <div>
       <div className="ph">
@@ -1714,12 +1823,14 @@ function DocsPage({ docs, saveDocs, toTrash }) {
           <div className="sub">Modèles de lettres, documents compagnies (MMA, Abeille, Swiss Life, Malakoff Humanis, Generali…) — téléchargeables par toute l'équipe</div>
         </div>
         <div className="row">
-          <input className="in" style={{ width: 220 }} placeholder="Nom du dossier (ex : Modèles MMA)" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addFolder()} />
+          <input className="in" style={{ width: 200 }} placeholder="🔍 Rechercher un dossier ou fichier…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="in" style={{ width: 200 }} placeholder="Nom du dossier (ex : Modèles MMA)" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addFolder()} />
           <button className="btn gold" onClick={addFolder}>+ Créer un dossier</button>
         </div>
       </div>
+      {q && <div style={{ fontSize: 12.5, color: "#8593a8", marginBottom: 10 }}>{visibleDocs.length} dossier(s) trouvé(s) pour « {search} »</div>}
       <div className="grid">
-        {docs.map((d) => (
+        {visibleDocs.map((d) => (
           <div className="card" key={d.id}>
             <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
               <h2 style={{ fontSize: 16 }}>📁 {d.name} <span style={{ color: "#8593a8", fontSize: 13, fontWeight: 400 }}>· {d.files.length} fichier(s)</span></h2>
@@ -1862,7 +1973,8 @@ function ObjectifsForm({ users, month, initial, onSave, onClose }) {
 /* ================= PROSPECTION ================= */
 const emptyProspect = (ownerId) => ({
   id: uid(), ownerId,
-  nom: "", prenom: "", profession: "", telephone: "", ville: "", email: "",
+  nom: "", prenom: "", profession: "", telephone: "", ville: "", email: "", dateNaissance: "",
+  per: "", prevoyance: "",
   dateAppel: todayISO(), repondu: "Oui",
   statut: "RDV pris",
   dateRdv: "", heureRdv: "",
@@ -1901,9 +2013,10 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
   }).sort((a, b) => (b.dateAppel || "").localeCompare(a.dateAppel || ""));
 
   /* ---- Statistiques détaillées ---- */
+  const NON_REPONSE = ["1er appel — pas de réponse", "2e appel — pas de réponse", "3e appel — pas de réponse", "Pas de réponse"];
   const stat = (list) => {
     const appels = list.length;
-    const repondus = list.filter((p) => p.repondu === "Oui").length;
+    const repondus = list.filter((p) => !NON_REPONSE.includes(p.statut)).length;
     const rdvPris = list.filter((p) => ["RDV pris", "RDV honoré", "RDV reporté", "Proposition envoyée", "Signé"].includes(p.statut)).length;
     const rdvHonores = list.filter((p) => ["RDV honoré", "Proposition envoyée", "Signé"].includes(p.statut)).length;
     const signes = list.filter((p) => p.statut === "Signé").length;
@@ -1955,7 +2068,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
       id: uid(),
       nom: entry.nom || "", prenom: entry.prenom || "",
       profession: entry.profession || "", telephone: entry.telephone || "",
-      email: entry.email || "", dateNaissance: "", revenus: "", situation: "Célibataire",
+      email: entry.email || "", dateNaissance: entry.dateNaissance || "", revenus: "", situation: "Célibataire",
       createdBy: entry.ownerId || me.id, createdAt: todayISO(),
       contrats: [], alertes: [],
       historique: [{
@@ -2036,6 +2149,39 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
         <span>· Note moyenne des RDV : <b style={{ color: NAVY }}>{S.noteMoy}/5</b></span>
       </div>
 
+      {/* ---- Listes importées (téléchargeables) ---- */}
+      {me.isManager && (() => {
+        const batches = {};
+        prospection.filter((p) => p.batchId).forEach((p) => {
+          (batches[p.batchId] = batches[p.batchId] || { nom: p.batchNom, date: p.batchDate, entries: [] }).entries.push(p);
+        });
+        const list = Object.entries(batches).sort((a, b) => (b[1].date || "").localeCompare(a[1].date || ""));
+        if (!list.length) return null;
+        const dlBatch = (b) => downloadCSV(
+          `ELYON_liste_${(b.nom || "import").replace(/\.[^.]+$/, "")}.csv`,
+          ["Commercial", "Nom", "Prénom", "Profession", "Téléphone", "Ville", "E-mail", "Statut", "Date appel", "RDV le", "PER", "Prévoyance", "Commentaire"],
+          b.entries.map((p) => [ownerName(p), p.nom, p.prenom, p.profession, (p.telephone || "").replace(/\s/g, ""), p.ville, p.email, p.statut, fmtDate(p.dateAppel), fmtDate(p.dateRdv), p.per, p.prevoyance, p.commentaire])
+        );
+        return (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <h2 style={{ fontSize: 15, marginBottom: 10 }}>📚 Listes importées</h2>
+            {list.map(([id, b]) => {
+              const signes = b.entries.filter((p) => p.statut === "Signé").length;
+              const traites = b.entries.filter((p) => !["À rappeler"].includes(p.statut)).length;
+              return (
+                <div key={id} className="row" style={{ justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #eef1f6" }}>
+                  <div style={{ fontSize: 13.5 }}>
+                    <b>📄 {b.nom || "Liste"}</b>
+                    <span style={{ color: "#8593a8", fontSize: 12 }}> — importée le {fmtDate(b.date)} · {b.entries.length} prospect(s) · {traites} travaillé(s) · {signes} signé(s)</span>
+                  </div>
+                  <button className="btn ghost sm" onClick={() => dlBatch(b)}>⬇️ Télécharger</button>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {/* ---- Répartition par profession ---- */}
       {professionsTri.length > 0 && (
         <div className="card" style={{ marginBottom: 16 }}>
@@ -2100,10 +2246,12 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
               <th>Prospect</th>
               <th>Profession</th>
               <th>Téléphone</th>
+              <th>Né(e) le</th>
               <th>Appel le</th>
-              <th>Répondu</th>
               <th>Statut</th>
               <th>RDV le</th>
+              <th>PER</th>
+              <th>Prév.</th>
               <th>Qualité prise</th>
               <th>Note RDV</th>
               <th style={{ width: "16%" }}>Commentaire</th>
@@ -2123,11 +2271,13 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
                   )}
                 </td>
                 <td style={{ fontSize: 12.5 }}>{p.profession || "—"}</td>
-                <td style={{ fontSize: 12.5 }}>{p.telephone || "—"}</td>
+                <td style={{ fontSize: 12.5 }}>{(p.telephone || "").replace(/\s/g, "") || "—"}</td>
+                <td style={{ fontSize: 12.5 }}>{p.dateNaissance ? fmtDate(p.dateNaissance) : "—"}</td>
                 <td style={{ fontSize: 12.5 }}>{fmtDate(p.dateAppel)}</td>
-                <td>{p.repondu === "Oui" ? "✅" : "❌"}</td>
                 <td><span className="badge" style={{ background: "#fff", border: `1px solid ${PROSPECTION_COLORS[p.statut] || "#8593a8"}`, color: PROSPECTION_COLORS[p.statut] || "#8593a8" }}>{p.statut}</span></td>
                 <td style={{ fontSize: 12.5 }}>{p.dateRdv ? <>{fmtDate(p.dateRdv)}{p.heureRdv && <div style={{ fontSize: 11, color: "#8593a8" }}>{p.heureRdv}</div>}</> : "—"}</td>
+                <td style={{ fontSize: 12.5 }}>{p.per || "—"}</td>
+                <td style={{ fontSize: 12.5 }}>{p.prevoyance || "—"}</td>
                 <td><Stars value={p.qualitePrise} /></td>
                 <td><Stars value={p.noteRdv} /></td>
                 <td style={{ fontSize: 12, color: "#5b6b82" }}>{p.commentaire || "—"}</td>
@@ -2135,7 +2285,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
               </tr>
             ))}
             {scoped.length === 0 && (
-              <tr><td colSpan={me.isManager ? 12 : 11} style={{ color: "#8593a8", fontSize: 13.5, padding: 18 }}>Aucune fiche. Cliquez sur « + Nouvel appel / RDV » pour enregistrer votre premier appel.</td></tr>
+              <tr><td colSpan={me.isManager ? 14 : 13} style={{ color: "#8593a8", fontSize: 13.5, padding: 18 }}>Aucune fiche. Cliquez sur « + Nouvel appel / RDV » pour enregistrer votre premier appel.</td></tr>
             )}
           </tbody>
         </table>
@@ -2178,14 +2328,14 @@ function ProspectForm({ initial, me, users, onSave, onClose, onDelete, onConvert
           <Field label="Nom *"><input className="in" value={f.nom} onChange={(e) => set("nom", e.target.value)} /></Field>
           <Field label="Prénom"><input className="in" value={f.prenom} onChange={(e) => set("prenom", e.target.value)} /></Field>
           <Field label="Profession">
-            <input className="in" list="professions-sante" value={f.profession} onChange={(e) => set("profession", e.target.value)} placeholder="ex : Infirmier(ère) libéral(e)" />
-            <datalist id="professions-sante">
-              {PROFESSIONS_SANTE.map((p) => <option key={p} value={p} />)}
-            </datalist>
+            <input className="in" value={f.profession} onChange={(e) => set("profession", e.target.value.toUpperCase())} placeholder="ex : INFIRMIÈRE LIBÉRALE" style={{ textTransform: "uppercase" }} />
           </Field>
-          <Field label="Téléphone"><input className="in" value={f.telephone} onChange={(e) => set("telephone", e.target.value)} /></Field>
+          <Field label="Téléphone"><input className="in" value={f.telephone} onChange={(e) => set("telephone", e.target.value.replace(/\s/g, ""))} /></Field>
+          <Field label="Date de naissance"><input className="in" type="date" value={f.dateNaissance || ""} onChange={(e) => set("dateNaissance", e.target.value)} /></Field>
           <Field label="Ville"><input className="in" value={f.ville} onChange={(e) => set("ville", e.target.value)} /></Field>
           <Field label="E-mail"><input className="in" value={f.email || ""} onChange={(e) => set("email", e.target.value)} /></Field>
+          <Field label="PER"><input className="in" value={f.per || ""} onChange={(e) => set("per", e.target.value)} placeholder="" /></Field>
+          <Field label="Prévoyance"><input className="in" value={f.prevoyance || ""} onChange={(e) => set("prevoyance", e.target.value)} placeholder="" /></Field>
           {me.isManager && (
             <Field label="Commercial">
               <select className="sel" value={f.ownerId} onChange={(e) => set("ownerId", e.target.value)}>
@@ -2194,11 +2344,6 @@ function ProspectForm({ initial, me, users, onSave, onClose, onDelete, onConvert
             </Field>
           )}
           <Field label="Date de l'appel (prise de RDV)"><input className="in" type="date" value={f.dateAppel} onChange={(e) => set("dateAppel", e.target.value)} /></Field>
-          <Field label="Appel répondu ?">
-            <select className="sel" value={f.repondu} onChange={(e) => set("repondu", e.target.value)}>
-              <option>Oui</option><option>Non</option>
-            </select>
-          </Field>
           <Field label="Statut">
             <select className="sel" value={f.statut} onChange={(e) => set("statut", e.target.value)}>
               {PROSPECTION_STATUTS.map((s) => <option key={s}>{s}</option>)}
@@ -2441,8 +2586,8 @@ function RdvCalendar({ entries, mode, users, me, onOpen }) {
         onClick={() => onOpen(p)}
         title={`${p.nom} ${p.prenom || ""} · ${p.statut} · pris par ${ownerName(p)}${p.commentaire ? " · " + p.commentaire : ""}`}
         style={{
-          fontSize: big ? 13.5 : 11.5, padding: big ? "10px 12px" : "3px 6px", borderRadius: big ? 10 : 6,
-          marginBottom: big ? 8 : 3, cursor: "pointer",
+          fontSize: big ? 14 : 12.5, padding: big ? "12px 14px" : "5px 8px", borderRadius: big ? 10 : 7,
+          marginBottom: big ? 10 : 4, lineHeight: 1.45, cursor: "pointer",
           background: st.bg, borderLeft: `${big ? 4 : 3}px solid ${st.border}`,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: big ? "normal" : "nowrap",
         }}
@@ -2509,9 +2654,10 @@ function RdvCalendar({ entries, mode, users, me, onOpen }) {
             const dIso = isoOf(d);
             const list = byDate[dIso] || [];
             return (
-              <div key={i} style={{ border: "1px solid #e3e8f0", borderRadius: 10, minHeight: 140, padding: 8, background: dIso === today ? "#fdf9f0" : "#fff", borderColor: dIso === today ? GOLD : "#e3e8f0" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: dIso === today ? "#7a5c17" : NAVY, marginBottom: 6 }}>
-                  {DAYS[i]} {d.getDate()}
+              <div key={i} style={{ border: "1px solid #e3e8f0", borderRadius: 12, minHeight: 190, padding: 10, background: dIso === today ? "#fdf9f0" : i >= 5 ? "#fafbfd" : "#fff", borderColor: dIso === today ? GOLD : "#e3e8f0", borderWidth: dIso === today ? 2 : 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: dIso === today ? "#7a5c17" : NAVY, marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                  <span>{DAYS[i]} {d.getDate()}</span>
+                  {list.length > 0 && <span style={{ background: NAVY, color: "#fff", borderRadius: 10, fontSize: 10.5, padding: "1px 7px" }}>{list.length}</span>}
                 </div>
                 {list.map((p) => <EventPill key={p.id} p={p} />)}
                 {list.length === 0 && <div style={{ fontSize: 11, color: "#c3ccd8" }}>—</div>}
@@ -2538,11 +2684,11 @@ function RdvCalendar({ entries, mode, users, me, onOpen }) {
                 const list = byDate[dIso] || [];
                 return (
                   <div key={i} style={{
-                    border: "1px solid #e3e8f0", borderRadius: 8, minHeight: 84, padding: 6,
+                    border: "1px solid #e3e8f0", borderRadius: 10, minHeight: 106, padding: 7,
                     background: dIso === today ? "#fdf9f0" : inMonth ? "#fff" : "#f7f8fb",
                     borderColor: dIso === today ? GOLD : "#e3e8f0", opacity: inMonth ? 1 : 0.55,
                   }}>
-                    <div style={{ fontSize: 11.5, fontWeight: dIso === today ? 800 : 600, color: dIso === today ? "#7a5c17" : "#5b6b82", marginBottom: 4 }}>{d.getDate()}</div>
+                    <div style={{ fontSize: 12.5, fontWeight: dIso === today ? 900 : 700, color: dIso === today ? "#7a5c17" : NAVY, marginBottom: 5 }}>{d.getDate()}{list.length > 0 && <span style={{ float: "right", background: GOLD, color: "#fff", borderRadius: 9, fontSize: 10, padding: "0 6px" }}>{list.length}</span>}</div>
                     {list.slice(0, 3).map((p) => <EventPill key={p.id} p={p} />)}
                     {list.length > 3 && <div style={{ fontSize: 10.5, color: "#8593a8" }}>+ {list.length - 3} autre(s)</div>}
                   </div>
@@ -2840,30 +2986,39 @@ function FichePatrimonialeModal({ client, onClose, onSave }) {
   );
 }
 
-/* Synthèse automatique : ne conserve que l'essentiel, joliment présenté */
+/* Synthèse automatique : uniquement l'essentiel, extensible d'un clic */
 function SynthesePatrimoniale({ answers }) {
+  const [all, setAll] = useState(false);
   const a = answers || {};
-  const items = [
+  const KEY = [
     { icon: "🎯", label: "Objectif principal", v: a.q1 },
-    { icon: "👨‍👩‍👧", label: "Situation familiale", v: a.q2 },
     { icon: "💶", label: "Revenus & épargne", v: a.q3 },
-    { icon: "🏠", label: "Patrimoine", v: a.q4 },
-    { icon: "🏦", label: "Dettes", v: a.q5 },
     { icon: "🧾", label: "Fiscalité", v: a.q6 },
     { icon: "⏳", label: "Horizon", v: a.q7 },
     { icon: "📉", label: "Profil de risque", v: a.q8 },
+    { icon: "🏠", label: "Patrimoine", v: a.q4 },
+  ];
+  const REST = [
+    { icon: "👨‍👩‍👧", label: "Situation familiale", v: a.q2 },
+    { icon: "🏦", label: "Dettes", v: a.q5 },
     { icon: "📈", label: "Expérience", v: a.q9 },
     { icon: "🛡️", label: "Protection / transmission", v: a.q10 },
-  ].filter((x) => (x.v || "").trim());
+  ];
+  const items = (all ? [...KEY, ...REST] : KEY).filter((x) => (x.v || "").trim());
   if (!items.length) return <div style={{ color: "#8593a8", fontSize: 13.5 }}>Fiche vide.</div>;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-      {items.map((x) => (
-        <div key={x.label} style={{ background: "#f8f9fc", borderRadius: 8, padding: "8px 10px", borderLeft: `3px solid ${GOLD}` }}>
-          <div style={{ fontSize: 11, color: "#8593a8", textTransform: "uppercase", letterSpacing: 0.5 }}>{x.icon} {x.label}</div>
-          <div style={{ fontSize: 13, color: NAVY, marginTop: 2, whiteSpace: "pre-wrap" }}>{x.v}</div>
-        </div>
-      ))}
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+        {items.map((x) => (
+          <div key={x.label} style={{ background: "#f8f9fc", borderRadius: 8, padding: "8px 10px", borderLeft: `3px solid ${GOLD}` }}>
+            <div style={{ fontSize: 10.5, color: "#8593a8", textTransform: "uppercase", letterSpacing: 0.5 }}>{x.icon} {x.label}</div>
+            <div style={{ fontSize: 12.5, color: NAVY, marginTop: 2, whiteSpace: "pre-wrap" }}>{x.v}</div>
+          </div>
+        ))}
+      </div>
+      {REST.some((x) => (x.v || "").trim()) && (
+        <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setAll(!all)}>{all ? "Réduire" : "Voir la fiche complète"}</button>
+      )}
     </div>
   );
 }
@@ -3047,6 +3202,7 @@ function ImportListeModal({ users, onClose, onImport }) {
   };
 
   const doImport = () => {
+    const batchId = uid();
     const nomCol = Object.keys(mapping).find((k) => mapping[k] === "nom");
     if (nomCol === undefined) { alert("Indiquez quelle colonne contient le NOM (obligatoire)."); return; }
     const entries = rows
@@ -3058,10 +3214,12 @@ function ImportListeModal({ users, onClose, onImport }) {
       .filter((e) => e.nom)
       .map((e) => ({
         id: uid(), ownerId: owner,
-        nom: e.nom, prenom: e.prenom, profession: e.profession, telephone: e.telephone, ville: e.ville, email: e.email,
+        nom: e.nom, prenom: e.prenom, profession: (e.profession || "").toUpperCase(), telephone: (e.telephone || "").replace(/\s/g, ""), ville: e.ville, email: e.email, dateNaissance: "",
+        per: "", prevoyance: "",
         dateAppel: todayISO(), repondu: "Non", statut: "À rappeler",
         dateRdv: "", heureRdv: "", qualitePrise: "", noteRdv: "",
         commentaire: "", createdAt: todayISO(), importe: true,
+        batchId: batchId, batchNom: fileName, batchDate: todayISO(),
       }));
     if (!entries.length) { alert("Aucune ligne exploitable (colonne NOM vide ?)."); return; }
     if (!confirm(`Importer ${entries.length} prospect(s) et les attribuer à ${((users.find((u) => u.id === owner)) || {}).prenom} ?`)) return;
@@ -3131,6 +3289,66 @@ function ImportListeModal({ users, onClose, onImport }) {
           <button className="btn ghost" onClick={rows ? () => { setRows(null); setHeaders([]); setFileName(""); } : onClose}>{rows ? "← Autre fichier" : "Annuler"}</button>
           {rows && <button className="btn gold" onClick={doImport}>Importer {rows.length} prospect(s)</button>}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= DÉCOMMISSIONS ================= */
+function DecomPage({ sales, users }) {
+  const rows = [];
+  Object.keys(sales).sort().reverse().forEach((m) => {
+    users.forEach((u) => {
+      (((sales[m] || {})[u.id] || {}).rows || []).forEach((r) => {
+        if ((r.nom || "").trim() && r.statut === "Décommissionné") rows.push({ ...r, month: m, commercial: `${u.prenom} ${u.nom}` });
+      });
+    });
+  });
+  const totRem = rows.reduce((s, r) => s + parseNum(r.remuneration), 0);
+  const totVol = rows.reduce((s, r) => s + parseNum(r.volume), 0);
+
+  return (
+    <div>
+      <div className="ph">
+        <div>
+          <h1>📉 Décommissions</h1>
+          <div className="sub">
+            Dossiers décommissionnés — pour retirer un dossier des commissions, passez son statut sur
+            « Décommissionné » dans le tableau des ventes : il s'affiche en rouge et arrive automatiquement ici.
+          </div>
+        </div>
+        <div className="row">
+          <div className="kpi"><div className="n" style={{ color: "#B3261E" }}>{rows.length}</div><div className="l">Dossiers</div></div>
+          <div className="kpi"><div className="n" style={{ color: "#B3261E" }}>{fmtEUR(totRem)}</div><div className="l">Rémunération décommissionnée</div></div>
+        </div>
+      </div>
+
+      <div className="card">
+        <table className="t">
+          <thead>
+            <tr><th>Mois</th><th>Commercial</th><th>Date création</th><th>Client</th><th>Type</th><th>Compagnie</th><th>Réf.</th><th>Volume</th><th>Rémunération</th><th>Commentaire</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="decom">
+                <td style={{ fontSize: 12 }}>{monthLabel(r.month)}</td>
+                <td style={{ fontSize: 12 }}>{r.commercial}</td>
+                <td style={{ fontSize: 12 }}>{fmtDate(r.dateCreation)}</td>
+                <td><b>{r.nom}</b></td>
+                <td style={{ fontSize: 12 }}>{r.type}</td>
+                <td style={{ fontSize: 12 }}>{r.compagnie}</td>
+                <td style={{ fontSize: 12 }}>{r.ref}</td>
+                <td style={{ fontSize: 12 }}>{r.volume}</td>
+                <td style={{ fontSize: 12 }}><b>{r.remuneration}</b></td>
+                <td style={{ fontSize: 11.5 }}>{r.commentaire}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={10} style={{ color: "#8593a8", padding: 18 }}>Aucune décommission ✓ — si un dossier est décommissionné, changez son statut dans le tableau des ventes.</td></tr>
+            )}
+          </tbody>
+        </table>
+        {totVol > 0 && <div style={{ fontSize: 12.5, color: "#5b6b82", marginTop: 10 }}>Volume total concerné : <b>{fmtEUR(totVol)}</b></div>}
       </div>
     </div>
   );
