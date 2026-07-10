@@ -30,19 +30,6 @@ const MOTIFS_RDV = [
   "Réaliser un suivi annuel et ajuster la stratégie patrimoniale",
 ];
 
-/* ---- Fiche patrimoniale : les 10 questions ---- */
-const QUESTIONS_PATRIMONIALES = [
-  { id: "q1", icon: "🎯", q: "Quel est votre objectif patrimonial principal ?", type: "text", ph: "ex : préparer la retraite, réduire mes impôts, acheter un bien…" },
-  { id: "q2", icon: "👨‍👩‍👧", q: "Quelle est votre situation familiale et votre régime matrimonial ?", type: "text", ph: "ex : marié(e) communauté réduite aux acquêts, 2 enfants…" },
-  { id: "q3", icon: "💶", q: "Quels sont vos revenus et combien pouvez-vous épargner chaque mois ?", type: "text", ph: "ex : 4 500 € nets/mois, capacité d'épargne 500 €/mois" },
-  { id: "q4", icon: "🏠", q: "Quels sont les principaux éléments de votre patrimoine aujourd'hui ?", type: "text", ph: "ex : résidence principale 350 k€, livrets 30 k€, assurance vie 50 k€…" },
-  { id: "q5", icon: "🏦", q: "Avez-vous des crédits ou d'autres dettes en cours ?", type: "text", ph: "ex : crédit immobilier 900 €/mois jusqu'en 2038…" },
-  { id: "q6", icon: "🧾", q: "Quelle est votre situation fiscale (TMI, RFR, IFI) ?", type: "text", ph: "ex : TMI 30 %, RFR 62 000 €, non assujetti IFI" },
-  { id: "q7", icon: "⏳", q: "Dans combien de temps pensez-vous avoir besoin de cet argent ?", type: "select", options: ["Moins de 2 ans", "2 à 5 ans", "5 à 10 ans", "Plus de 10 ans", "Pas de besoin identifié"] },
-  { id: "q8", icon: "📉", q: "Comment réagiriez-vous face à une baisse temporaire de 20 % de votre investissement ?", type: "select", options: ["Je vendrais tout (profil prudent)", "Je m'inquiéterais mais j'attendrais (profil équilibré)", "Je renforcerais ma position (profil dynamique)"] },
-  { id: "q9", icon: "📈", q: "Avez-vous déjà investi sur des produits financiers ? Lesquels ?", type: "text", ph: "ex : assurance vie fonds euros, PEA, SCPI, crypto…" },
-  { id: "q10", icon: "🛡️", q: "Souhaitez-vous protéger un proche ou préparer la transmission de votre patrimoine ?", type: "text", ph: "ex : protéger mon conjoint, transmettre à mes enfants…" },
-];
 
 /* ---- Modèles d'e-mails par défaut (modifiables dans la Messagerie) ---- */
 const DEFAULT_MAIL_TEMPLATES = [
@@ -357,7 +344,29 @@ const CSS = `
   .loginbox .gold { color:${GOLD}; letter-spacing: 3px; font-size: 11px; text-transform: uppercase; text-align:center; display:block; margin-bottom: 26px; margin-top: 4px; }
   .userbtn { display:flex; justify-content:space-between; align-items:center; width:100%; padding: 13px 16px; border:1px solid #cdd6e2; border-radius:10px; background:#fff; cursor:pointer; font-size: 15px; margin-bottom: 10px; }
   .userbtn:hover { border-color:${GOLD}; background:#fdf9f0; }
-  @media (max-width: 860px) { .crm { flex-direction: column; } .side { width:100%; min-height:0; } .main { padding: 18px 14px; } }
+  /* ============ OPTIMISATION MOBILE ============ */
+  @media (max-width: 860px) {
+    .crm { flex-direction: column; }
+    /* Barre latérale → barre supérieure compacte avec menu horizontal défilant */
+    .side { width:100%; min-height:0; position: sticky; top: 0; z-index: 80; }
+    .side .nav { display:flex; flex-direction:row; overflow-x:auto; -webkit-overflow-scrolling: touch; padding: 4px 8px 8px; gap: 4px; }
+    .side .nav button { white-space: nowrap; flex-shrink: 0; font-size: 12.5px; padding: 8px 12px; border-radius: 8px; }
+    .main { padding: 14px 10px; }
+    .ph { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .ph .row { flex-wrap: wrap; }
+    h1 { font-size: 20px; }
+    .kpis { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .kpi .n { font-size: 20px; }
+    .fgrid { grid-template-columns: 1fr; }
+    .grid { grid-template-columns: 1fr !important; }
+    .modal { width: 94vw !important; max-width: 94vw !important; padding: 16px !important; max-height: 90vh; overflow-y: auto; }
+    /* Tableaux : défilement horizontal fluide au doigt */
+    .card { padding: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table.t { min-width: 640px; }
+    .in, .sel, .ta, .btn { font-size: 16px; } /* évite le zoom automatique iPhone à la saisie */
+    .btn { padding: 10px 14px; }
+    .userbtn { padding: 14px 16px; }
+  }
 `;
 
 /* ================= COMPOSANTS GÉNÉRIQUES ================= */
@@ -592,7 +601,7 @@ export default function App() {
           <AccessDenied goBack={() => { setPage("prospection"); setOpenClient(null); }} />
         ) : (
         <>
-        {page === "dash" && <Dashboard clients={clients} users={users} view={view} me={me} sales={sales} rdvClients={rdvClients} saveClients={saveClients} goClient={(c) => { setOpenClient(c.id); setPage("clients"); }} />}
+        {page === "dash" && <Dashboard clients={clients} users={users} view={view} me={me} sales={sales} rdvClients={rdvClients} prospection={prospection} saveClients={saveClients} saveUsers={saveUsers} goClient={(c) => { setOpenClient(c.id); setPage("clients"); }} goProspection={() => setPage("prospection")} />}
         {page === "messagerie" && (
           <MessageriePage clients={clients} users={users} me={me} mailTpl={mailTpl} saveMailTpl={saveMailTpl} />
         )}
@@ -752,7 +761,8 @@ function Login({ users, onLogin, onSetPassword }) {
 }
 
 /* ================= TABLEAU DE BORD ================= */
-function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, saveClients, goClient }) {
+function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, prospection, saveClients, saveUsers, goClient, goProspection }) {
+  const relancesActives = !((users.find((u) => u.id === me.id) || {}).relancesOff);
   const [showContrats, setShowContrats] = useState(null);
   /* Cloisonnement : un commercial ne voit que ses clients.
      Le manager voit tout depuis son espace, ou le portefeuille du conseiller consulté. */
@@ -789,11 +799,37 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, sa
       if (d >= 0 && d <= 7) alerts.push({ kind: "anniv", client: c, date: bd.toISOString().slice(0, 10), days: d, age: ageAt(c.dateNaissance, bd) });
     }
     /* 📋 Fiche patrimoniale non complétée 1 mois après la création de la fiche client */
-    if (!(c.fichePatrimoniale && c.fichePatrimoniale.doneAt) && c.createdAt) {
+    if (!(c.audit && c.audit.doneAt) && !(c.fichePatrimoniale && c.fichePatrimoniale.doneAt) && c.createdAt) {
       const age = Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000);
       if (age >= 30) alerts.push({ kind: "fiche", client: c, date: today, days: age });
     }
   });
+  /* 🔁 Relances intelligentes : prospects "à rappeler" sans activité depuis 7 jours */
+  const scopeOwner = (ownerId) => {
+    if (!me.isManager) return ownerId === me.id;
+    if (view.id !== me.id) return ownerId === view.id;
+    return true;
+  };
+  const RELANCE_STATUTS = ["À rappeler", "1er appel — pas de réponse", "2e appel — pas de réponse", "Pas de réponse"];
+  const dormants = !relancesActives ? [] : (prospection || [])
+    .filter((p) => scopeOwner(p.ownerId) && RELANCE_STATUTS.includes(p.statut))
+    .map((p) => ({ p, jours: Math.floor((Date.now() - new Date(p.updatedAt || p.dateAppel || p.createdAt || today).getTime()) / 86400000) }))
+    .filter((x) => x.jours >= 7)
+    .sort((a, b) => b.jours - a.jours);
+  dormants.slice(0, 5).forEach(({ p, jours }) => alerts.push({ kind: "relanceProspect", prospect: p, days: jours, date: today }));
+  if (dormants.length > 5) alerts.push({ kind: "relancePlus", count: dormants.length - 5, date: today });
+
+  /* 😴 Clients sans aucune interaction depuis 6 mois */
+  if (relancesActives) clients.forEach((c) => {
+    const dates = [c.createdAt || "", ...((c.historique || []).map((h) => h.date || "")),
+      ...((rdvClients || []).filter((r) => r.clientId === c.id).map((r) => r.date || ""))].filter(Boolean).sort();
+    const last = dates[dates.length - 1];
+    if (last) {
+      const jours = Math.floor((Date.now() - new Date(last).getTime()) / 86400000);
+      if (jours >= 180) alerts.push({ kind: "clientDormant", client: c, days: jours, date: today });
+    }
+  });
+
   /* 📅 RDV clients dans les 7 prochains jours (les miens, ou ceux de l'espace consulté) */
   (rdvClients || []).forEach((r) => {
     if (r.done || !r.date) return;
@@ -820,7 +856,17 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, sa
           <h1>Tableau de bord</h1>
           <div className="sub">Vue d'ensemble du cabinet · espace de {view.prenom} {view.nom}</div>
         </div>
-        <button className="btn gold" onClick={() => setShowContrats("all")}>📄 Contrats signés du mois</button>
+        <div className="row">
+          <button
+            className="btn ghost"
+            title="Active ou désactive les alertes de relance (prospects inactifs 7 j, clients sans contact 6 mois)"
+            style={{ borderColor: relancesActives ? "#1b7a3d" : "#B3261E", color: relancesActives ? "#1b7a3d" : "#B3261E", fontWeight: 600 }}
+            onClick={() => saveUsers(users.map((u) => (u.id === me.id ? { ...u, relancesOff: relancesActives } : u)))}
+          >
+            🔁 Relances : {relancesActives ? "ACTIVÉES" : "DÉSACTIVÉES"}
+          </button>
+          <button className="btn gold" onClick={() => setShowContrats("all")}>📄 Contrats signés du mois</button>
+        </div>
       </div>
 
       <div className="kpis" style={{ marginBottom: 20 }}>
@@ -856,9 +902,28 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, sa
                 </>
               ) : a.kind === "fiche" ? (
                 <>
-                  <b>📋 Fiche patrimoniale à compléter</b> — {a.client.nom.toUpperCase()} {a.client.prenom}
+                  <b>🩺 Audit patrimonial à réaliser</b> — {a.client.nom.toUpperCase()} {a.client.prenom}
                   <div style={{ fontSize: 12, color: "#8593a8" }}>
-                    Fiche client créée il y a {a.days} jours sans fiche patrimoniale. Ouvrez la fiche client pour la compléter (10 questions).
+                    Fiche client créée il y a {a.days} jours sans audit patrimonial. Ouvrez la fiche client pour le réaliser.
+                  </div>
+                </>
+              ) : a.kind === "relanceProspect" ? (
+                <>
+                  <b>🔁 Relance prospection</b> — {(a.prospect.nom || "").toUpperCase()} {a.prospect.prenom || ""} · {a.prospect.statut}
+                  <div style={{ fontSize: 12, color: "#8593a8" }}>
+                    Aucune activité depuis <b>{a.days} jours</b>{a.prospect.telephone ? ` · 📞 ${a.prospect.telephone}` : ""} — à rappeler en priorité.
+                  </div>
+                </>
+              ) : a.kind === "relancePlus" ? (
+                <>
+                  <b>🔁 … et {a.count} autre(s) prospect(s)</b> en attente de relance
+                  <div style={{ fontSize: 12, color: "#8593a8" }}>Retrouvez-les dans l'espace Prospection, filtre « À rappeler ».</div>
+                </>
+              ) : a.kind === "clientDormant" ? (
+                <>
+                  <b>😴 Client sans contact</b> — {a.client.nom.toUpperCase()} {a.client.prenom}
+                  <div style={{ fontSize: 12, color: "#8593a8" }}>
+                    Aucune interaction depuis <b>{Math.floor(a.days / 30)} mois</b> — une bonne occasion de proposer un point patrimonial.
                   </div>
                 </>
               ) : a.kind === "rdvclient" ? (
@@ -1126,6 +1191,7 @@ function ClientForm({ initial, onSave, onClose }) {
 function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, update, remove }) {
   const [showRdv, setShowRdv] = useState(false);
   const [showFiche, setShowFiche] = useState(false);
+  const [showCourrier, setShowCourrier] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showContract, setShowContract] = useState(false);
   const [editContract, setEditContract] = useState(null);
@@ -1230,7 +1296,10 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
       <div className="card" style={{ marginTop: 16 }}>
         <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
           <h2 style={{ fontSize: 17 }}>📅 Rendez-vous ({(rdvClients || []).filter((r) => r.clientId === client.id && !r.done).length} à venir)</h2>
-          <button className="btn gold sm" onClick={() => setShowRdv(true)}>+ Planifier un RDV</button>
+          <div className="row">
+            <button className="btn ghost sm" onClick={() => setShowCourrier(true)}>📄 Générer un courrier</button>
+            <button className="btn gold sm" onClick={() => setShowRdv(true)}>+ Planifier un RDV</button>
+          </div>
         </div>
         {(rdvClients || []).filter((r) => r.clientId === client.id).sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)).map((r) => (
           <div key={r.id} className="row" style={{ justifyContent: "space-between", padding: "8px 4px", borderBottom: "1px solid #eef1f6", opacity: r.done ? 0.55 : 1 }}>
@@ -1258,23 +1327,27 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
         )}
       </div>
 
-      {/* ---- Fiche patrimoniale ---- */}
-      <div className="card" style={{ marginTop: 16, border: client.fichePatrimoniale ? undefined : `2px solid ${GOLD}` }}>
+      {/* ---- Audit patrimonial ---- */}
+      <div className="card" style={{ marginTop: 16, border: client.audit ? undefined : `2px solid ${GOLD}` }}>
         <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
           <h2 style={{ fontSize: 17 }}>
-            📋 Fiche patrimoniale {client.fichePatrimoniale
-              ? <span className="badge b-navy" style={{ marginLeft: 6 }}>✓ complétée le {fmtDate(client.fichePatrimoniale.doneAt)}</span>
-              : <span className="badge b-gold" style={{ marginLeft: 6 }}>À compléter</span>}
+            🩺 Audit patrimonial {client.audit
+              ? <span className="badge b-navy" style={{ marginLeft: 6 }}>✓ réalisé le {fmtDate(client.audit.doneAt)}</span>
+              : <span className="badge b-gold" style={{ marginLeft: 6 }}>À réaliser</span>}
           </h2>
-          <button className="btn gold sm" onClick={() => setShowFiche(true)}>
-            {client.fichePatrimoniale ? "Voir / modifier" : "📋 Compléter la fiche (10 questions)"}
-          </button>
+          <div className="row">
+            {client.audit && <button className="btn ghost sm" onClick={() => auditPDF(client)}>⬇️ Télécharger le PDF</button>}
+            <button className="btn gold sm" onClick={() => setShowFiche(true)}>
+              {client.audit ? "Voir / modifier" : "🩺 Réaliser l'audit"}
+            </button>
+          </div>
         </div>
-        {client.fichePatrimoniale ? (
-          <SynthesePatrimoniale answers={client.fichePatrimoniale.answers} />
+        {client.audit ? (
+          <AuditSynthese a={client.audit.f} />
         ) : (
           <div style={{ color: "#8593a8", fontSize: 13.5 }}>
-            10 questions pour connaître la situation, les objectifs et le profil de risque du client. Une synthèse est générée automatiquement.
+            L'essentiel de l'audit patrimonial ELYON : état civil, revenus et fiscalité, patrimoine, objectifs et profil investisseur.
+            Une fois complété, le PDF « Audit patrimonial Elyon » est téléchargeable.
           </div>
         )}
       </div>
@@ -1287,9 +1360,12 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
         />
       )}
       {showFiche && (
-        <FichePatrimonialeModal
+        <AuditModal
           client={client}
           onClose={() => setShowFiche(false)}
+          onSave={(f) => { update({ ...client, audit: { f, doneAt: (client.audit || {}).doneAt || todayISO() } }); setShowFiche(false); }}
+        />
+      )}
           onSave={(answers) => { update({ ...client, fichePatrimoniale: { answers, doneAt: (client.fichePatrimoniale || {}).doneAt || todayISO() } }); setShowFiche(false); }}
         />
       )}
@@ -1462,6 +1538,7 @@ function SalesPage({ sales, saveSales, users: allUsers, objectifs, saveObjectifs
   const months = Object.keys(sales).sort();
   const [month, setMonth] = useState(months[months.length - 1]);
   const [showObj, setShowObj] = useState(false);
+  const [vue, setVue] = useState("mois"); // mois | annee
 
   /* Créer une fiche client + le contrat associé depuis une ligne du tableau */
   const createFromRow = (u, r) => {
@@ -1576,14 +1653,27 @@ function SalesPage({ sales, saveSales, users: allUsers, objectifs, saveObjectifs
           <div className="sub">Vue d'ensemble mois par mois — un tableau par commercial · volume et rémunération saisis à la main</div>
         </div>
         <div className="row">
-          <select className="sel" style={{ width: 200 }} value={month} onChange={(e) => setMonth(e.target.value)}>
+          <div className="row" style={{ gap: 0, border: "1px solid #cdd6e2", borderRadius: 8, overflow: "hidden" }}>
+            {[["mois", "📅 Mensuel"], ["annee", "📊 Annuel"]].map(([k, l]) => (
+              <button key={k} onClick={() => setVue(k)}
+                style={{ border: "none", padding: "8px 14px", fontSize: 13, cursor: "pointer", background: vue === k ? NAVY : "#fff", color: vue === k ? "#fff" : NAVY, fontFamily: "inherit" }}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {vue === "mois" && <select className="sel" style={{ width: 200 }} value={month} onChange={(e) => setMonth(e.target.value)}>
             {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
-          </select>
-          <button className="btn ghost" onClick={exportCSV}>⬇️ Exporter (Excel)</button>
-          {me.isManager && <button className="btn ghost" onClick={() => setShowObj(true)}>🎯 Définir les objectifs</button>}
-          <button className="btn gold" onClick={addMonth}>+ Ajouter le mois suivant</button>
+          </select>}
+          {vue === "mois" && <button className="btn ghost" onClick={exportCSV}>⬇️ Exporter (Excel)</button>}
+          {vue === "mois" && me.isManager && <button className="btn ghost" onClick={() => setShowObj(true)}>🎯 Définir les objectifs</button>}
+          {vue === "mois" && <button className="btn gold" onClick={addMonth}>+ Ajouter le mois suivant</button>}
         </div>
       </div>
+
+      {vue === "annee" && <AnnualView sales={sales} users={users} me={me} />}
+
+      {vue === "mois" && (
+      <>
 
       {/* ---- Objectifs du mois ---- */}
       <div className="card" style={{ marginBottom: 18 }}>
@@ -1645,6 +1735,9 @@ function SalesPage({ sales, saveSales, users: allUsers, objectifs, saveObjectifs
           );
         })()}
       </div>
+
+      </>
+      )}
 
       {showObj && (
         <ObjectifsForm
@@ -2113,6 +2206,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
   };
 
   const save = (entry) => {
+    entry = { ...entry, updatedAt: todayISO() }; /* trace de la dernière activité (relances intelligentes) */
     if (editEntry) saveProspection(prospection.map((p) => (p.id === entry.id ? entry : p)));
     else saveProspection([...prospection, entry]);
     setShowForm(false); setEditEntry(null);
@@ -3107,98 +3201,7 @@ function RdvClientForm({ client, me, onClose, onSave }) {
   );
 }
 
-/* ================= FICHE PATRIMONIALE (10 questions) ================= */
-function FichePatrimonialeModal({ client, onClose, onSave }) {
-  const [answers, setAnswers] = useState({ ...((client.fichePatrimoniale || {}).answers || {}) });
-  const [step, setStep] = useState(0);
-  const total = QUESTIONS_PATRIMONIALES.length;
-  const Q = QUESTIONS_PATRIMONIALES[step];
-  const pct = Math.round(((step + 1) / total) * 100);
-  const set = (v) => setAnswers({ ...answers, [Q.id]: v });
 
-  return (
-    <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 620 }}>
-        <h2>📋 Fiche patrimoniale — {client.nom.toUpperCase()} {client.prenom}</h2>
-        <div style={{ margin: "14px 0 4px", display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8593a8" }}>
-          <span>Question {step + 1} / {total}</span><span>{pct} %</span>
-        </div>
-        <div style={{ height: 8, background: "#eef1f6", borderRadius: 4, overflow: "hidden", marginBottom: 20 }}>
-          <div style={{ height: "100%", width: `${pct}%`, background: GOLD, borderRadius: 4, transition: "width .3s" }} />
-        </div>
-
-        <div style={{ fontSize: 34, textAlign: "center" }}>{Q.icon}</div>
-        <div style={{ fontSize: 16.5, fontWeight: 700, color: NAVY, textAlign: "center", margin: "8px 0 16px" }}>{Q.q}</div>
-
-        {Q.type === "select" ? (
-          <div>
-            {Q.options.map((o) => (
-              <div
-                key={o}
-                onClick={() => set(o)}
-                style={{
-                  padding: "12px 14px", borderRadius: 10, marginBottom: 8, cursor: "pointer", fontSize: 14,
-                  border: answers[Q.id] === o ? `2px solid ${GOLD}` : "1px solid #dfe4ec",
-                  background: answers[Q.id] === o ? "#fdf9f0" : "#fff", fontWeight: answers[Q.id] === o ? 700 : 400,
-                }}
-              >
-                {answers[Q.id] === o ? "● " : "○ "}{o}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <textarea className="ta" rows={3} autoFocus value={answers[Q.id] || ""} onChange={(e) => set(e.target.value)} placeholder={Q.ph} style={{ fontSize: 14 }} />
-        )}
-
-        <div className="row" style={{ marginTop: 18, justifyContent: "space-between" }}>
-          <button className="btn ghost" onClick={() => (step === 0 ? onClose() : setStep(step - 1))}>{step === 0 ? "Annuler" : "← Précédent"}</button>
-          {step < total - 1 ? (
-            <button className="btn gold" onClick={() => setStep(step + 1)}>Suivant →</button>
-          ) : (
-            <button className="btn gold" onClick={() => onSave(answers)}>✓ Terminer et générer la synthèse</button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* Synthèse automatique : uniquement l'essentiel, extensible d'un clic */
-function SynthesePatrimoniale({ answers }) {
-  const [all, setAll] = useState(false);
-  const a = answers || {};
-  const KEY = [
-    { icon: "🎯", label: "Objectif principal", v: a.q1 },
-    { icon: "💶", label: "Revenus & épargne", v: a.q3 },
-    { icon: "🧾", label: "Fiscalité", v: a.q6 },
-    { icon: "⏳", label: "Horizon", v: a.q7 },
-    { icon: "📉", label: "Profil de risque", v: a.q8 },
-    { icon: "🏠", label: "Patrimoine", v: a.q4 },
-  ];
-  const REST = [
-    { icon: "👨‍👩‍👧", label: "Situation familiale", v: a.q2 },
-    { icon: "🏦", label: "Dettes", v: a.q5 },
-    { icon: "📈", label: "Expérience", v: a.q9 },
-    { icon: "🛡️", label: "Protection / transmission", v: a.q10 },
-  ];
-  const items = (all ? [...KEY, ...REST] : KEY).filter((x) => (x.v || "").trim());
-  if (!items.length) return <div style={{ color: "#8593a8", fontSize: 13.5 }}>Fiche vide.</div>;
-  return (
-    <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-        {items.map((x) => (
-          <div key={x.label} style={{ background: "#f8f9fc", borderRadius: 8, padding: "8px 10px", borderLeft: `3px solid ${GOLD}` }}>
-            <div style={{ fontSize: 10.5, color: "#8593a8", textTransform: "uppercase", letterSpacing: 0.5 }}>{x.icon} {x.label}</div>
-            <div style={{ fontSize: 12.5, color: NAVY, marginTop: 2, whiteSpace: "pre-wrap" }}>{x.v}</div>
-          </div>
-        ))}
-      </div>
-      {REST.some((x) => (x.v || "").trim()) && (
-        <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setAll(!all)}>{all ? "Réduire" : "Voir la fiche complète"}</button>
-      )}
-    </div>
-  );
-}
 
 /* ================= MESSAGERIE ================= */
 function MessageriePage({ clients, users, me, mailTpl, saveMailTpl }) {
@@ -3547,4 +3550,416 @@ function AccessDenied({ goBack }) {
       </div>
     </div>
   );
+}
+
+/* ================= VUE ANNUELLE CONSOLIDÉE ================= */
+function AnnualView({ sales, users, me }) {
+  const monthsAll = Object.keys(sales).sort();
+  const years = [...new Set(monthsAll.map((m) => m.slice(0, 4)))].sort().reverse();
+  const [year, setYear] = useState(years[0]);
+
+  /* Lignes réelles (hors annulé, hors recopies automatiques pour ne rien compter deux fois) */
+  const rowsOf = (mk, uid2) => ((((sales[mk] || {})[uid2] || {}).rows) || [])
+    .filter((r) => (r.nom || "").trim() && r.statut !== "Annulé" && !r.mirrorOf);
+
+  const monthsY = monthsAll.filter((m) => m.startsWith(year));
+  const monthsPrev = monthsAll.filter((m) => m.startsWith(String(Number(year) - 1)));
+
+  /* Graphique : volume par mois, une barre par commercial */
+  const chartData = monthsY.map((mk) => {
+    const d = { mois: MONTH_NAMES[Number(mk.slice(5, 7)) - 1].slice(0, 4) };
+    users.forEach((u) => { d[u.prenom] = rowsOf(mk, u.id).reduce((s, r) => s + parseNum(r.volume), 0); });
+    return d;
+  });
+  const USER_COLORS = [NAVY, GOLD, "#1b6e5a", "#8e44ad", "#d35400", "#1d6fb8"];
+
+  /* Cumuls par commercial */
+  const cumuls = users.map((u) => {
+    let contrats = 0, volume = 0, rem = 0;
+    monthsY.forEach((mk) => rowsOf(mk, u.id).forEach((r) => { contrats++; volume += parseNum(r.volume); rem += parseNum(r.remuneration); }));
+    return { u, contrats, volume, rem };
+  }).sort((a, b) => b.volume - a.volume);
+
+  /* Répartitions produit / compagnie */
+  const parType = {}, parCompagnie = {};
+  monthsY.forEach((mk) => users.forEach((u) => rowsOf(mk, u.id).forEach((r) => {
+    if (r.type) { (parType[r.type] = parType[r.type] || { n: 0, v: 0 }); parType[r.type].n++; parType[r.type].v += parseNum(r.volume); }
+    if (r.compagnie) { (parCompagnie[r.compagnie] = parCompagnie[r.compagnie] || { n: 0, v: 0 }); parCompagnie[r.compagnie].n++; parCompagnie[r.compagnie].v += parseNum(r.volume); }
+  })));
+  const triV = (o) => Object.entries(o).sort((a, b) => b[1].v - a[1].v);
+
+  /* Totaux N vs N-1 */
+  const totOf = (mks) => {
+    let c = 0, v = 0;
+    mks.forEach((mk) => users.forEach((u) => rowsOf(mk, u.id).forEach((r) => { c++; v += parseNum(r.volume); })));
+    return { c, v };
+  };
+  const totN = totOf(monthsY), totP = totOf(monthsPrev);
+  const evol = (a, b) => (b ? Math.round(((a - b) / b) * 100) : null);
+  const evolC = evol(totN.c, totP.c), evolV = evol(totN.v, totP.v);
+  const Evo = ({ e }) => e === null ? null : (
+    <span style={{ fontSize: 12, fontWeight: 700, color: e >= 0 ? "#1b7a3d" : "#B3261E", marginLeft: 6 }}>
+      {e >= 0 ? "▲" : "▼"} {Math.abs(e)} % vs {Number(year) - 1}
+    </span>
+  );
+
+  const maxTypeV = Math.max(1, ...Object.values(parType).map((x) => x.v));
+  const maxCieV = Math.max(1, ...Object.values(parCompagnie).map((x) => x.v));
+  const BarLine = ({ label, n, v, max, color }) => (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+        <b>{label}</b><span style={{ color: "#5b6b82" }}>{n} contrat(s) · {fmtEUR(v)}</span>
+      </div>
+      <div style={{ height: 8, background: "#eef1f6", borderRadius: 4, marginTop: 3, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${Math.round((v / max) * 100)}%`, background: color, borderRadius: 4 }} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="row" style={{ marginBottom: 16, justifyContent: "space-between" }}>
+        <div className="row">
+          <select className="sel" style={{ width: 120 }} value={year} onChange={(e) => setYear(e.target.value)}>
+            {years.map((y) => <option key={y}>{y}</option>)}
+          </select>
+        </div>
+        <div className="row">
+          <div className="kpi"><div className="n">{totN.c}<Evo e={evolC} /></div><div className="l">Contrats {year}</div></div>
+          <div className="kpi"><div className="n">{fmtEUR(totN.v)}<Evo e={evolV} /></div><div className="l">Volume {year}</div></div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 12 }}>📊 Volume par mois et par commercial — {year}</h2>
+        <div style={{ width: "100%", height: 300 }}>
+          <ResponsiveContainer>
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e3e8f0" />
+              <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "#5b6b82" }} />
+              <YAxis tick={{ fontSize: 11, fill: "#5b6b82" }} tickFormatter={(v) => v.toLocaleString("fr-FR")} />
+              <Tooltip formatter={(v, name) => [fmtEUR(v), name]} />
+              {users.map((u, i) => <Bar key={u.id} dataKey={u.prenom} stackId="a" fill={USER_COLORS[i % USER_COLORS.length]} radius={i === users.length - 1 ? [5, 5, 0, 0] : [0, 0, 0, 0]} />)}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+        <div className="card">
+          <h2 style={{ fontSize: 15, marginBottom: 12 }}>🧑‍💼 Cumuls {year} par commercial</h2>
+          <table className="t">
+            <thead><tr><th>Commercial</th><th>Contrats</th><th>Volume</th><th>Rémunération</th></tr></thead>
+            <tbody>
+              {cumuls.map(({ u, contrats, volume, rem }) => (
+                <tr key={u.id}>
+                  <td><b>{u.prenom} {u.nom}</b></td>
+                  <td>{contrats}</td>
+                  <td>{fmtEUR(volume)}</td>
+                  <td>{fmtEUR(rem)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="card">
+          <h2 style={{ fontSize: 15, marginBottom: 12 }}>📦 Répartition par produit</h2>
+          {triV(parType).map(([t, x]) => <BarLine key={t} label={t} n={x.n} v={x.v} max={maxTypeV} color={GOLD} />)}
+          {!Object.keys(parType).length && <div style={{ color: "#8593a8", fontSize: 13 }}>Aucune donnée sur {year}.</div>}
+        </div>
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: 15, marginBottom: 12 }}>🏦 Répartition par compagnie <span style={{ fontSize: 12, color: "#8593a8", fontWeight: 400 }}>— utile pour vos négociations de barèmes</span></h2>
+        {triV(parCompagnie).map(([c, x]) => <BarLine key={c} label={c} n={x.n} v={x.v} max={maxCieV} color={NAVY2} />)}
+        {!Object.keys(parCompagnie).length && <div style={{ color: "#8593a8", fontSize: 13 }}>Aucune donnée sur {year}.</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ================= GÉNÉRATEUR DE COURRIERS PRÉ-REMPLIS ================= */
+const COURRIER_TEMPLATES = [
+  {
+    id: "transfert", nom: "Demande de transfert de contrat",
+    objet: "Demande de transfert — contrat n° {NUMERO}",
+    corps: "Madame, Monsieur,\n\nJe soussigné(e) {PRENOM} {NOM}, titulaire du contrat {TYPE} n° {NUMERO} souscrit auprès de {COMPAGNIE}, vous demande par la présente de procéder au transfert de l'intégralité de mon contrat.\n\nJe vous remercie de bien vouloir me transmettre le relevé de situation ainsi que les documents nécessaires à cette opération dans les meilleurs délais.\n\nDans l'attente de votre retour, je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
+  },
+  {
+    id: "rib", nom: "Changement de coordonnées bancaires (RIB)",
+    objet: "Changement de domiciliation bancaire — contrat n° {NUMERO}",
+    corps: "Madame, Monsieur,\n\nJe soussigné(e) {PRENOM} {NOM}, titulaire du contrat {TYPE} n° {NUMERO}, vous informe du changement de mes coordonnées bancaires.\n\nVous trouverez ci-joint mon nouveau relevé d'identité bancaire. Je vous remercie de bien vouloir prendre en compte cette modification pour l'ensemble des prélèvements et versements à venir.\n\nJe vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
+  },
+  {
+    id: "vp", nom: "Modification du versement programmé",
+    objet: "Modification du versement programmé — contrat n° {NUMERO}",
+    corps: "Madame, Monsieur,\n\nJe soussigné(e) {PRENOM} {NOM}, titulaire du contrat {TYPE} n° {NUMERO}, souhaite modifier le montant de mon versement programmé.\n\nJe vous demande de bien vouloir porter ce versement à ________ € par mois, à compter du prochain prélèvement.\n\nJe vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
+  },
+  {
+    id: "rachat", nom: "Demande de rachat partiel",
+    objet: "Demande de rachat partiel — contrat n° {NUMERO}",
+    corps: "Madame, Monsieur,\n\nJe soussigné(e) {PRENOM} {NOM}, titulaire du contrat {TYPE} n° {NUMERO}, vous demande de procéder à un rachat partiel d'un montant de ________ € sur mon contrat.\n\nJe vous remercie de bien vouloir créditer cette somme sur le compte bancaire dont le RIB est joint à la présente.\n\nJe vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
+  },
+  {
+    id: "beneficiaire", nom: "Modification de la clause bénéficiaire",
+    objet: "Modification de la clause bénéficiaire — contrat n° {NUMERO}",
+    corps: "Madame, Monsieur,\n\nJe soussigné(e) {PRENOM} {NOM}, titulaire du contrat {TYPE} n° {NUMERO}, souhaite modifier la clause bénéficiaire de mon contrat comme suit :\n\n________________________________________\n\nJe vous remercie de bien vouloir m'adresser un avenant confirmant cette modification.\n\nJe vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
+  },
+];
+
+function CourrierModal({ client, onClose }) {
+  const contrats = client.contrats || [];
+  const [tplId, setTplId] = useState(COURRIER_TEMPLATES[0].id);
+  const [contratId, setContratId] = useState(contrats[0] ? contrats[0].id : "");
+
+  const fill = (txt) => {
+    const k = contrats.find((x) => x.id === contratId) || {};
+    return txt
+      .replace(/{NOM}/g, (client.nom || "").toUpperCase())
+      .replace(/{PRENOM}/g, client.prenom || "")
+      .replace(/{TYPE}/g, k.type || "________")
+      .replace(/{COMPAGNIE}/g, k.compagnie || "________")
+      .replace(/{NUMERO}/g, k.numero || "________");
+  };
+  const tpl = COURRIER_TEMPLATES.find((t) => t.id === tplId);
+  const [objet, setObjet] = useState(fill(tpl.objet));
+  const [corps, setCorps] = useState(fill(tpl.corps));
+  const pick = (id) => {
+    setTplId(id);
+    const t = COURRIER_TEMPLATES.find((x) => x.id === id);
+    setObjet(fill(t.objet)); setCorps(fill(t.corps));
+  };
+  const rePick = (cid) => {
+    setContratId(cid);
+    setTimeout(() => { const t = COURRIER_TEMPLATES.find((x) => x.id === tplId); setObjet(fill(t.objet)); setCorps(fill(t.corps)); }, 0);
+  };
+
+  const imprimer = () => {
+    const k = contrats.find((x) => x.id === contratId) || {};
+    const dateFR = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    const w = window.open("", "_blank");
+    w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>${objet}</title>
+      <style>
+        body { font-family: Georgia, "Times New Roman", serif; color: #1a1a1a; max-width: 700px; margin: 40px auto; line-height: 1.7; font-size: 14.5px; }
+        .exp { font-size: 13px; }
+        .dest { text-align: right; margin: 30px 0; font-size: 13px; }
+        .objet { font-weight: bold; margin: 30px 0 20px; }
+        .corps { white-space: pre-wrap; text-align: justify; }
+        .sign { margin-top: 50px; text-align: right; }
+        @media print { body { margin: 20mm; } }
+      </style></head><body>
+      <div class="exp"><b>${(client.prenom || "")} ${(client.nom || "").toUpperCase()}</b><br>${client.ville || ""}<br>${client.telephone || ""}</div>
+      <div class="dest">${k.compagnie || "________"}<br>Service Gestion<br><br>${client.ville ? client.ville + ", le " : "Le "}${dateFR}</div>
+      <div class="objet">Objet : ${objet}</div>
+      <div class="corps">${corps.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>
+      <div class="sign">${(client.prenom || "")} ${(client.nom || "").toUpperCase()}<br><br><i>Signature :</i></div>
+      </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 400);
+  };
+
+  return (
+    <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 680, maxHeight: "88vh", overflowY: "auto" }}>
+        <h2>📄 Générer un courrier — {client.nom.toUpperCase()} {client.prenom}</h2>
+        <div className="row" style={{ marginTop: 12 }}>
+          <Field label="Type de courrier">
+            <select className="sel" value={tplId} onChange={(e) => pick(e.target.value)}>
+              {COURRIER_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
+            </select>
+          </Field>
+          <Field label="Contrat concerné">
+            <select className="sel" value={contratId} onChange={(e) => rePick(e.target.value)}>
+              {contrats.map((k) => <option key={k.id} value={k.id}>{k.type} {k.compagnie} — n° {k.numero || "?"}</option>)}
+              {!contrats.length && <option value="">Aucun contrat sur la fiche</option>}
+            </select>
+          </Field>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <Field label="Objet"><input className="in" value={objet} onChange={(e) => setObjet(e.target.value)} /></Field>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <Field label="Corps du courrier (modifiable — remplissez les ________ si besoin)">
+            <textarea className="ta" rows={13} value={corps} onChange={(e) => setCorps(e.target.value)} style={{ fontSize: 13.5, lineHeight: 1.6 }} />
+          </Field>
+        </div>
+        <div className="row" style={{ marginTop: 16, justifyContent: "space-between" }}>
+          <button className="btn ghost" onClick={onClose}>Fermer</button>
+          <div className="row">
+            <button className="btn ghost" onClick={async () => { try { await navigator.clipboard.writeText(corps); alert("Courrier copié ✓"); } catch { } }}>📋 Copier</button>
+            <button className="btn gold" onClick={imprimer}>🖨️ Imprimer / PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= AUDIT PATRIMONIAL ELYON ================= */
+/* Synthèse du document papier : uniquement les informations décisives */
+const AUDIT_OBJECTIFS = [
+  "Protéger vos proches et vous-même", "Valoriser votre patrimoine", "Préparer l'avenir de vos enfants",
+  "Compléter votre retraite", "Protéger son conjoint survivant", "Organiser votre transmission (DMTG)",
+  "Financer vos projets personnels", "Optimiser votre fiscalité (IRPP, IFI)", "Développer votre entreprise",
+  "Prévoyance / Dépendance",
+];
+const AUDIT_PROFILS = ["Stratégie prudente", "Stratégie équilibrée", "Stratégie dynamique"];
+const AUDIT_VIDE = {
+  regimeMat: "", parts: "", revenus: "", tmi: "", impot: "",
+  residence: "Propriétaire", immobilier: "", credits: "",
+  epargneDispo: "", assuranceVie: "", retraite: "", prevoyance: "",
+  objectifs: [], horizon: "", epargneMens: "", capital: "", profil: "", notes: "",
+};
+
+function AuditModal({ client, onClose, onSave }) {
+  const [f, setF] = useState({ ...AUDIT_VIDE, ...((client.audit || {}).f || {}) });
+  const set = (k, v) => setF({ ...f, [k]: v });
+  const toggleObj = (o) => set("objectifs", f.objectifs.includes(o) ? f.objectifs.filter((x) => x !== o) : [...f.objectifs, o]);
+
+  const Section = ({ t }) => (
+    <div style={{ background: NAVY, color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", padding: "7px 12px", borderRadius: 6, margin: "18px 0 12px", borderRight: `4px solid ${GOLD}` }}>{t}</div>
+  );
+
+  return (
+    <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
+        <h2>🩺 Audit patrimonial — {client.nom.toUpperCase()} {client.prenom}</h2>
+
+        <Section t="État civil et fiscalité" />
+        <div className="fgrid">
+          <Field label="Régime matrimonial"><input className="in" value={f.regimeMat} onChange={(e) => set("regimeMat", e.target.value)} placeholder="ex : marié, communauté réduite aux acquêts" /></Field>
+          <Field label="Parts fiscales"><input className="in" value={f.parts} onChange={(e) => set("parts", e.target.value)} placeholder="ex : 3" /></Field>
+          <Field label="Revenus annuels nets du foyer (€)"><input className="in" value={f.revenus} onChange={(e) => set("revenus", e.target.value)} placeholder="ex : 78 000" /></Field>
+          <Field label="TMI (%)"><input className="in" value={f.tmi} onChange={(e) => set("tmi", e.target.value)} placeholder="ex : 30" /></Field>
+          <Field label="Impôt net à payer (€)"><input className="in" value={f.impot} onChange={(e) => set("impot", e.target.value)} placeholder="ex : 6 400" /></Field>
+        </div>
+
+        <Section t="Patrimoine" />
+        <div className="fgrid">
+          <Field label="Résidence principale">
+            <select className="sel" value={f.residence} onChange={(e) => set("residence", e.target.value)}>
+              <option>Propriétaire</option><option>Locataire</option><option>Hébergé à titre gracieux</option>
+            </select>
+          </Field>
+          <Field label="Patrimoine immobilier total (€)"><input className="in" value={f.immobilier} onChange={(e) => set("immobilier", e.target.value)} placeholder="ex : 420 000" /></Field>
+          <Field label="Crédits en cours (CRD / mensualités)"><input className="in" value={f.credits} onChange={(e) => set("credits", e.target.value)} placeholder="ex : 180 k€ · 950 €/mois jusque 2038" /></Field>
+          <Field label="Épargne disponible (livrets…) (€)"><input className="in" value={f.epargneDispo} onChange={(e) => set("epargneDispo", e.target.value)} placeholder="ex : 25 000" /></Field>
+          <Field label="Assurance vie (encours) (€)"><input className="in" value={f.assuranceVie} onChange={(e) => set("assuranceVie", e.target.value)} placeholder="ex : 60 000" /></Field>
+          <Field label="Retraite : PER / PERP / Madelin (€)"><input className="in" value={f.retraite} onChange={(e) => set("retraite", e.target.value)} placeholder="ex : PER 30 000" /></Field>
+          <Field label="Prévoyance en place"><input className="in" value={f.prevoyance} onChange={(e) => set("prevoyance", e.target.value)} placeholder="ex : April, IJ + invalidité, 45 €/mois" /></Field>
+        </div>
+
+        <Section t="Objectifs patrimoniaux" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          {AUDIT_OBJECTIFS.map((o) => (
+            <label key={o} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, cursor: "pointer", padding: "5px 8px", borderRadius: 6, background: f.objectifs.includes(o) ? "#fdf9f0" : "transparent", border: f.objectifs.includes(o) ? `1px solid ${GOLD}` : "1px solid transparent" }}>
+              <input type="checkbox" checked={f.objectifs.includes(o)} onChange={() => toggleObj(o)} />
+              {o}
+            </label>
+          ))}
+        </div>
+
+        <Section t="Moyens et profil investisseur" />
+        <div className="fgrid">
+          <Field label="Horizon de temps"><input className="in" value={f.horizon} onChange={(e) => set("horizon", e.target.value)} placeholder="ex : 10 ans (retraite)" /></Field>
+          <Field label="Épargne mensuelle possible (€)"><input className="in" value={f.epargneMens} onChange={(e) => set("epargneMens", e.target.value)} placeholder="ex : 400" /></Field>
+          <Field label="Capital mobilisable (€)"><input className="in" value={f.capital} onChange={(e) => set("capital", e.target.value)} placeholder="ex : 15 000" /></Field>
+          <Field label="Profil investisseur">
+            <select className="sel" value={f.profil} onChange={(e) => set("profil", e.target.value)}>
+              <option value="">—</option>
+              {AUDIT_PROFILS.map((p) => <option key={p}>{p}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        <Section t="Synthèse du rendez-vous" />
+        <textarea className="ta" rows={3} value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Notes, critères de solution idéale, points d'attention…" />
+
+        <div className="row" style={{ marginTop: 18, justifyContent: "flex-end" }}>
+          <button className="btn ghost" onClick={onClose}>Annuler</button>
+          <button className="btn gold" onClick={() => onSave(f)}>✓ Enregistrer l'audit</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Synthèse visible sur la fiche client */
+function AuditSynthese({ a }) {
+  const items = [
+    ["🧾", "Fiscalité", [a.tmi && `TMI ${a.tmi} %`, a.impot && `Impôt ${a.impot} €`, a.parts && `${a.parts} parts`].filter(Boolean).join(" · ")],
+    ["💶", "Revenus foyer", a.revenus && `${a.revenus} €/an`],
+    ["🏠", "Immobilier", [a.residence, a.immobilier && `${a.immobilier} €`].filter(Boolean).join(" · ")],
+    ["🏦", "Épargne", [a.epargneDispo && `Dispo ${a.epargneDispo} €`, a.assuranceVie && `AV ${a.assuranceVie} €`, a.retraite && `Retraite ${a.retraite}`].filter(Boolean).join(" · ")],
+    ["🎯", "Objectifs", (a.objectifs || []).slice(0, 3).join(" · ") + ((a.objectifs || []).length > 3 ? "…" : "")],
+    ["📊", "Profil", [a.profil, a.horizon && `horizon ${a.horizon}`].filter(Boolean).join(" · ")],
+    ["💰", "Moyens", [a.epargneMens && `${a.epargneMens} €/mois`, a.capital && `capital ${a.capital} €`].filter(Boolean).join(" · ")],
+  ].filter((x) => (x[2] || "").trim());
+  if (!items.length) return <div style={{ color: "#8593a8", fontSize: 13.5 }}>Audit vide.</div>;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+      {items.map(([ic, l, v]) => (
+        <div key={l} style={{ background: "#f8f9fc", borderRadius: 8, padding: "8px 10px", borderLeft: `3px solid ${GOLD}` }}>
+          <div style={{ fontSize: 10.5, color: "#8593a8", textTransform: "uppercase", letterSpacing: 0.5 }}>{ic} {l}</div>
+          <div style={{ fontSize: 12.5, color: NAVY, marginTop: 2 }}>{v}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* PDF « Audit patrimonial Elyon » — mise en page fidèle au document du cabinet */
+function auditPDF(client) {
+  const a = (client.audit || {}).f || {};
+  const dateFR = new Date().toLocaleDateString("fr-FR");
+  const L = (label, val) => `<div class="line"><span class="lab">${label}</span><span class="val">${val || "—"}</span></div>`;
+  const w = window.open("", "_blank");
+  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+  <title>Audit patrimonial Elyon</title>
+  <style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; color:#1a1a1a; max-width: 760px; margin: 24px auto; font-size: 13px; }
+    .head { background:#111; color:#fff; padding: 16px 22px; display:flex; justify-content:space-between; align-items:center; }
+    .head b { letter-spacing: 3px; font-size: 15px; }
+    .head span { font-size: 10px; letter-spacing: 2px; color:#C9A24B; }
+    h1 { font-family: Georgia, serif; font-weight: 500; font-size: 26px; margin: 18px 0 2px; }
+    .gold { height:3px; width:120px; background:#C9A24B; margin-bottom: 14px; }
+    .meta { font-size: 11.5px; color:#555; margin-bottom: 6px; }
+    .sec { background:#111; color:#fff; font-size: 11px; letter-spacing: 2px; padding: 6px 12px; margin: 16px 0 8px; border-right: 6px solid #C9A24B; text-transform: uppercase; }
+    .line { display:flex; border-bottom: 1px dotted #bbb; padding: 5px 2px; }
+    .lab { width: 260px; color:#444; font-weight: 600; font-size: 11.5px; flex-shrink:0; }
+    .val { flex:1; }
+    .obj { display:inline-block; border:1px solid #C9A24B; border-radius: 4px; padding: 2px 8px; margin: 2px 4px 2px 0; font-size: 11.5px; }
+    .notes { border:1px solid #ddd; padding: 10px; min-height: 60px; white-space: pre-wrap; }
+    @media print { body { margin: 10mm; } }
+  </style></head><body>
+  <div class="head"><b>ELYON &nbsp;&amp;&nbsp; ASSOCIÉS</b><span>AUDIT PATRIMONIAL</span></div>
+  <h1>Audit Patrimonial</h1><div class="gold"></div>
+  <div class="meta">Client : <b>${(client.nom || "").toUpperCase()} ${client.prenom || ""}</b> · ${client.profession || ""} · Édité le ${dateFR}</div>
+  <div class="sec">État civil et fiscalité</div>
+  ${L("Situation / régime matrimonial", [client.situation, a.regimeMat].filter(Boolean).join(" — "))}
+  ${L("Enfants", client.enfants)}
+  ${L("Parts fiscales", a.parts)}
+  ${L("Revenus annuels nets du foyer", a.revenus && a.revenus + " €")}
+  ${L("TMI", a.tmi && a.tmi + " %")}
+  ${L("Impôt net à payer", a.impot && a.impot + " €")}
+  <div class="sec">Patrimoine</div>
+  ${L("Résidence principale", a.residence)}
+  ${L("Patrimoine immobilier total", a.immobilier && a.immobilier + " €")}
+  ${L("Crédits en cours", a.credits)}
+  ${L("Épargne disponible", a.epargneDispo && a.epargneDispo + " €")}
+  ${L("Assurance vie", a.assuranceVie && a.assuranceVie + " €")}
+  ${L("Retraite (PER, PERP, Madelin)", a.retraite)}
+  ${L("Prévoyance", a.prevoyance)}
+  <div class="sec">Objectifs patrimoniaux</div>
+  <div>${(a.objectifs || []).map((o) => `<span class="obj">${o}</span>`).join("") || "—"}</div>
+  <div class="sec">Moyens et profil investisseur</div>
+  ${L("Horizon de temps", a.horizon)}
+  ${L("Épargne mensuelle possible", a.epargneMens && a.epargneMens + " €/mois")}
+  ${L("Capital mobilisable", a.capital && a.capital + " €")}
+  ${L("Profil investisseur", a.profil)}
+  <div class="sec">Synthèse du rendez-vous</div>
+  <div class="notes">${(a.notes || "—").replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>
+  </body></html>`);
+  w.document.close();
+  setTimeout(() => w.print(), 400);
 }
