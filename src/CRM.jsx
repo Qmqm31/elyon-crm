@@ -68,7 +68,10 @@ const ALERT_TYPES = [
   "Rappel pour signature de contrat",
   "Autre",
 ];
-const BAREMES = ["Manager", "Commercial"];
+const BAREMES = ["Manager", "Commercial", "Téléprospecteur"];
+const isTelepro = (u) => u && u.bareme === "Téléprospecteur";
+/* Espaces interdits aux téléprospecteurs (onglets visibles, mais accès bloqué) */
+const PAGES_BLOQUEES_TELEPRO = ["clients", "ventes", "messagerie"];
 const STATUTS = ["En attente", "Payé", "Annulé", "Décommissionné"];
 
 /* ---- Prospection ---- */
@@ -585,6 +588,10 @@ export default function App() {
 
       <main className="main">
         <RdvReminder prospection={prospection} rdvClients={rdvClients} clients={clients} me={me} />
+        {isTelepro(me) && PAGES_BLOQUEES_TELEPRO.includes(page) ? (
+          <AccessDenied goBack={() => { setPage("prospection"); setOpenClient(null); }} />
+        ) : (
+        <>
         {page === "dash" && <Dashboard clients={clients} users={users} view={view} me={me} sales={sales} rdvClients={rdvClients} saveClients={saveClients} goClient={(c) => { setOpenClient(c.id); setPage("clients"); }} />}
         {page === "messagerie" && (
           <MessageriePage clients={clients} users={users} me={me} mailTpl={mailTpl} saveMailTpl={saveMailTpl} />
@@ -629,6 +636,8 @@ export default function App() {
               saveTrash(trash.filter((x) => x.id !== item.id));
             }}
           />
+        )}
+        </>
         )}
         {backupModal && (
           <BackupModal
@@ -943,7 +952,8 @@ function ContratsModal({ sales, users, me, onClose, initialType }) {
 }
 
 /* ================= CLASSEMENT ÉQUIPE ================= */
-function Leaderboard({ sales, users }) {
+function Leaderboard({ sales, users: allUsers }) {
+  const users = allUsers.filter((u) => !isTelepro(u));
   const months = Object.keys(sales).sort();
   const [month, setMonth] = useState(months[months.length - 1]);
   const md = sales[month] || {};
@@ -1447,7 +1457,8 @@ function AlertForm({ onSave, onClose }) {
 }
 
 /* ================= VENTES ÉQUIPE ================= */
-function SalesPage({ sales, saveSales, users, objectifs, saveObjectifs, me, clients, saveClients }) {
+function SalesPage({ sales, saveSales, users: allUsers, objectifs, saveObjectifs, me, clients, saveClients }) {
+  const users = allUsers.filter((u) => !isTelepro(u)); /* pas de tableau de ventes pour les téléprospecteurs */
   const months = Object.keys(sales).sort();
   const [month, setMonth] = useState(months[months.length - 1]);
   const [showObj, setShowObj] = useState(false);
@@ -1931,11 +1942,11 @@ function TeamPage({ users, saveUsers, sales, saveSales, me }) {
       <div className="ph">
         <div>
           <h1>Mon équipe</h1>
-          <div className="sub">Créez un espace pour chaque nouveau commercial — son tableau de ventes est généré automatiquement</div>
+          <div className="sub">Créez un espace pour chaque commercial (tableau de ventes automatique) ou téléprospecteur (accès prospection uniquement — pas de ventes ni de clients)</div>
         </div>
       </div>
       <div className="card" style={{ marginBottom: 18 }}>
-        <h2 style={{ fontSize: 17, marginBottom: 12 }}>+ Nouveau commercial</h2>
+        <h2 style={{ fontSize: 17, marginBottom: 12 }}>+ Nouveau membre de l'équipe</h2>
         <div className="fgrid">
           <Field label="Prénom"><input className="in" value={f.prenom} onChange={(e) => setF({ ...f, prenom: e.target.value })} /></Field>
           <Field label="Nom"><input className="in" value={f.nom} onChange={(e) => setF({ ...f, nom: e.target.value })} /></Field>
@@ -1957,7 +1968,7 @@ function TeamPage({ users, saveUsers, sales, saveSales, me }) {
               <div style={{ fontSize: 12.5, color: "#5b6b82" }}>{u.isManager ? "Manager · accès à tous les espaces · protégé par mot de passe" : "Commercial"}</div>
             </div>
             <div className="row">
-              <span className={"badge " + (u.isManager ? "b-gold" : "b-grey")}>Barème {u.bareme}</span>
+              <span className={"badge " + (u.isManager ? "b-gold" : isTelepro(u) ? "b-navy" : "b-grey")}>{isTelepro(u) ? "📞 Téléprospecteur" : "Barème " + u.bareme}</span>
               {!u.isManager && (
                 <button
                   className="btn ghost sm"
@@ -3515,6 +3526,24 @@ function DecomPage({ sales, users }) {
           </tbody>
         </table>
         {totVol > 0 && <div style={{ fontSize: 12.5, color: "#5b6b82", marginTop: 10 }}>Volume total concerné : <b>{fmtEUR(totVol)}</b></div>}
+      </div>
+    </div>
+  );
+}
+
+/* ================= ACCÈS REFUSÉ (téléprospecteurs) ================= */
+function AccessDenied({ goBack }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+      <div className="card" style={{ maxWidth: 460, textAlign: "center", padding: "40px 32px", border: `2px solid ${GOLD}` }}>
+        <div style={{ fontSize: 52 }}>🔒</div>
+        <h2 style={{ fontSize: 20, color: NAVY, margin: "14px 0 8px" }}>Vous n'avez pas accès à cet espace</h2>
+        <p style={{ fontSize: 13.5, color: "#5b6b82", lineHeight: 1.6 }}>
+          Votre profil <b>Téléprospecteur</b> vous donne accès à la prospection, à l'agenda
+          et au tableau de bord — mais pas aux ventes ni aux fiches clients.
+          <br />Contactez votre manager si vous pensez qu'il s'agit d'une erreur.
+        </p>
+        <button className="btn gold" style={{ marginTop: 16 }} onClick={goBack}>🎯 Retour à la prospection</button>
       </div>
     </div>
   );
