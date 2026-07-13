@@ -684,6 +684,7 @@ export default function App() {
           <ProspectionPage
             prospection={prospection} saveProspection={saveProspection} me={me} users={users} toTrash={toTrash}
             clients={clients} saveClients={saveClients}
+            prosObj={prosObj} saveProsObj={saveProsObj}
             goClient={(id) => { setPage("clients"); setOpenClient(id); }}
           />
         )}
@@ -2425,6 +2426,7 @@ function Stars({ value }) {
 }
 
 function ProspectionPage({ prospection, saveProspection, me, users, toTrash, clients, saveClients, goClient, prosObj, saveProsObj }) {
+  prosObj = prosObj || {}; saveProsObj = saveProsObj || (() => {});
   const [showProsObj, setShowProsObj] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editEntry, setEditEntry] = useState(null);
