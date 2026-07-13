@@ -338,7 +338,9 @@ const CSS = `
   table.t th { background:${NAVY}; color:#fff; padding: 8px 7px; text-align:center; font-weight:600; font-size:11.5px; letter-spacing:.5px; text-transform:uppercase; white-space: nowrap; }
   table.t th:first-child { border-radius: 8px 0 0 0; } table.t th:last-child { border-radius: 0 8px 0 0; }
   table.t td { border-bottom:1px solid #edf1f6; padding: 3px 5px; text-align:center; font-size:12.5px; }
-  table.salest td { height:34px; white-space:nowrap; vertical-align:middle; }
+  table.salest { table-layout: fixed; width: 100%; }
+  table.salest td { height:34px; white-space:nowrap; vertical-align:middle; overflow:hidden; }
+  table.salest input, table.salest select { width:100%; min-width:0; text-overflow:ellipsis; }
   table.salest tbody tr:nth-child(odd):not(.paye):not(.annule):not(.decom):not(.totrow):not(.nprow) td { background:#fbfcff; }
   table.nowrapt td { white-space:nowrap; }
   table.t tbody tr:not(.paye):not(.annule):not(.decom):not(.totrow):not(.nprow):hover td { background:#f6f8fb; }
@@ -1999,18 +2001,18 @@ function SalesPage({ sales, saveSales, users: allUsers, objectifs, saveObjectifs
             <table className="t salest">
               <thead>
                 <tr>
-                  <th style={{ width: "9%" }}>Date création</th>
-                  <th style={{ width: "13%" }}>Nom / Prénom client</th>
-                  <th>Type de contrat</th>
-                  <th>Compagnie</th>
-                  <th style={{ width: "5%" }}>Frais</th>
-                  <th>Réf. contrat</th>
-                  <th style={{ width: "14%" }}>Commentaires</th>
-                  <th>Apporteur</th>
-                  <th>Volume</th>
-                  <th>Rémunération</th>
-                  <th>Statut</th>
-                  <th style={{ width: 34 }}></th>
+                  <th style={{ width: "8.5%" }}>Date création</th>
+                  <th style={{ width: "12%" }}>Nom / Prénom client</th>
+                  <th style={{ width: "10%" }}>Type de contrat</th>
+                  <th style={{ width: "9.5%" }}>Compagnie</th>
+                  <th style={{ width: "4.5%" }}>Frais</th>
+                  <th style={{ width: "7.5%" }}>Réf. contrat</th>
+                  <th style={{ width: "13%" }}>Commentaires</th>
+                  <th style={{ width: "7.5%" }}>Apporteur</th>
+                  <th style={{ width: "8%" }}>Volume</th>
+                  <th style={{ width: "8%" }}>Rémunération</th>
+                  <th style={{ width: "8.5%" }}>Statut</th>
+                  <th style={{ width: "3%" }}></th>
                 </tr>
               </thead>
               <tbody>
