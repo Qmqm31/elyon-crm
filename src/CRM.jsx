@@ -23,9 +23,9 @@ const AUDIT_FIELDS = [{"n": "f0_0", "p": 0, "x": 94.5, "y": 682.4, "w": 186, "h"
 
 /* ---- Fonds d'écran pré-intégrés (Wikimedia Commons, libres de droits) ---- */
 const FONDS_LOGIN = [
-  { id: "facade", nom: "🏛️ Façade haussmannienne", url: "https://commons.wikimedia.org/wiki/Special:FilePath/Immeuble_haussmannien_%C3%A0_Paris_%2852169315349%29.jpg?width=1800" },
-  { id: "perspective", nom: "🏙️ Perspective parisienne", url: "https://commons.wikimedia.org/wiki/Special:FilePath/Immeubles_haussmannien_%2834669957061%29.jpg?width=1800" },
-  { id: "toits", nom: "🌇 Toits de Paris", url: "https://commons.wikimedia.org/wiki/Special:FilePath/View_from_the_roof_of_Galeries_Lafayette%2C_January_31%2C_2012.jpg?width=1800" },
+  { id: "facade", nom: "🏛️ Façade haussmannienne", url: "https://commons.wikimedia.org/wiki/Special:FilePath/Immeuble_haussmannien_%C3%A0_Paris_%2852169315349%29.jpg?width=2200" },
+  { id: "perspective", nom: "🏙️ Perspective parisienne", url: "https://commons.wikimedia.org/wiki/Special:FilePath/Immeubles_haussmannien_%2834669957061%29.jpg?width=2200" },
+  { id: "toits", nom: "🌇 Toits de Paris", url: "https://commons.wikimedia.org/wiki/Special:FilePath/View_from_the_roof_of_Galeries_Lafayette%2C_January_31%2C_2012.jpg?width=2200" },
 ];
 
 /* ---- Motifs de rendez-vous client ---- */
@@ -359,9 +359,9 @@ const CSS = `
   .clientcard { transition: transform .15s, box-shadow .15s, border-color .15s; }
   .clientcard:hover { border-color:${GOLD}; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(11,37,69,.10); }
   .filelink { display:flex; justify-content:space-between; align-items:center; padding: 8px 12px; background:${LIGHT}; border:1px solid #e3e8f0; border-radius:8px; font-size:13px; margin-bottom:6px; }
-  .alertline { position:relative; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 30px 7px 11px; border-radius:8px; border:1px solid #e3e8f0; background:#fff; margin-bottom:6px; font-size:12.5px; line-height:1.45; }
+  .alertline { position:relative; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 11px 7px 30px; border-radius:8px; border:1px solid #e3e8f0; background:#fff; margin-bottom:6px; font-size:12.5px; line-height:1.45; }
   .alertline b { font-weight:600; }
-  .alertx { position:absolute; top:4px; right:6px; border:none; background:transparent; color:#b4becc; font-size:14px; cursor:pointer; padding:2px 5px; border-radius:5px; line-height:1; }
+  .alertx { position:absolute; top:4px; left:5px; border:none; background:transparent; color:#b4becc; font-size:14px; cursor:pointer; padding:2px 5px; border-radius:5px; line-height:1; }
   .alertx:hover { background:#f2e6e5; color:#B3261E; }
   .alertline.today { border-color:${GOLD}; background:#fdf6e7; }
   .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom: 16px; }
@@ -425,6 +425,7 @@ const CSS = `
     .btn { padding: 10px 14px; }
     .userbtn { padding: 14px 16px; }
     .loginbox { padding: 26px 20px !important; margin: 0 12px; }
+    .clientline { grid-template-columns: 1fr 1fr; gap: 4px 12px; }
     .kpis { grid-template-columns: repeat(2, 1fr); }
   }
 `;
@@ -794,7 +795,7 @@ function Login({ users, settings, onLogin, onSetPassword }) {
             filter: (settings || {}).loginBgNB ? "grayscale(1)" : "none",
           }} />
         )}
-        {bg && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(rgba(11,37,69,.72), rgba(11,37,69,.82))" }} />}
+        {bg && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(rgba(11,37,69,.55), rgba(11,37,69,.72))" }} />}
         <div className="loginbox" style={{ background: "rgba(255,255,255,.96)", backdropFilter: "blur(6px)", position: "relative", zIndex: 2 }}>
           <div style={{ width: 62, height: 62, margin: "0 auto 12px", borderRadius: "50%", border: `2px solid ${GOLD}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Georgia, serif", fontSize: 26, color: NAVY, background: "#fff" }}>
             E<span style={{ color: GOLD, fontSize: 18 }}>&</span>A
@@ -901,7 +902,7 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, pr
       const nf = nextFollowUp(k.dateSignature);
       if (nf) {
         const d = daysUntil(nf);
-        if (d <= 7) alerts.push({ kind: "suivi", client: c, contrat: k, date: nf.toISOString().slice(0, 10), days: d });
+        if (d <= 7) alerts.push({ kind: "suivi", client: c, contrat: k, date: nf.toISOString().slice(0, 10), days: d, k: `su:${k.id}:${nf.getFullYear()}` });
       }
     });
     /* 🎂 Anniversaire client dans les 7 prochains jours */
@@ -934,7 +935,7 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, pr
       }
     });
     /* 📋 Fiche patrimoniale non complétée 1 mois après la création de la fiche client */
-    if (!(c.auditPdf && c.auditPdf.doneAt) && !(c.audit && c.audit.doneAt) && !(c.fichePatrimoniale && c.fichePatrimoniale.doneAt) && c.createdAt) {
+    if (!(c.auditPdfFile && c.auditPdfFile.doneAt) && !(c.auditResume && c.auditResume.doneAt) && !(c.auditPdf && c.auditPdf.doneAt) && !(c.audit && c.audit.doneAt) && !(c.fichePatrimoniale && c.fichePatrimoniale.doneAt) && c.createdAt) {
       const age = Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000);
       if (age >= 30) alerts.push({ kind: "fiche", client: c, date: today, days: age, k: `fi:${c.id}` });
     }
@@ -1296,14 +1297,22 @@ function ClientsPage({ clients, saveClients, me, users, openClient }) {
 
       <div className="grid">
         {filtered.map((c) => (
-          <div className="clientcard" key={c.id} onClick={() => openClient(c.id)}>
-            <div>
-              <b style={{ fontSize: 15 }}>{c.nom.toUpperCase()} {c.prenom}</b>
-              <div style={{ fontSize: 12.5, color: "#5b6b82" }}>
-                {c.profession || "Profession non renseignée"} · {c.telephone || "—"} · {c.email || "—"}
-              </div>
+          <div className="clientcard" key={c.id} onClick={() => openClient(c.id)} style={{ padding: "13px 18px" }}>
+            <div className="clientline">
+              <b style={{ fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {c.nom.toUpperCase()} {c.prenom}
+              </b>
+              <span style={{ fontSize: 13, color: "#5b6b82", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                💼 {c.profession || "Profession non renseignée"}{c.ville ? ` · 📍 ${c.ville}` : ""}
+              </span>
+              <span style={{ fontSize: 13, color: "#5b6b82", whiteSpace: "nowrap" }}>
+                📞 {(c.telephone || "—").replace(/\s/g, "")}
+              </span>
+              <span style={{ fontSize: 12.5, color: "#8593a8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                ✉️ {c.email || "—"}
+              </span>
             </div>
-            <div className="row">
+            <div className="row" style={{ flexShrink: 0 }}>
               {me.isManager && <span className="badge b-grey">👤 {ownerName(c)}</span>}
               {(c.contrats || []).length > 0 && <span className="badge b-navy">{c.contrats.length} contrat(s)</span>}
               {(c.alertes || []).some((a) => !a.done && a.date <= todayISO()) && <span className="badge b-gold">🔔 alerte</span>}
@@ -1368,6 +1377,7 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
   const [showRdv, setShowRdv] = useState(false);
   const [showFiche, setShowFiche] = useState(false);
   const [showCourrier, setShowCourrier] = useState(false);
+  const [showResume, setShowResume] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showContract, setShowContract] = useState(false);
   const [editContract, setEditContract] = useState(null);
@@ -1510,28 +1520,68 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
         )}
       </div>
 
-      {/* ---- Audit patrimonial : PDF original remplissable + résumé ---- */}
-      <div className="card" style={{ marginTop: 16, border: client.auditPdf ? undefined : `2px solid ${GOLD}` }}>
-        <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+      {/* ---- Audit patrimonial : PDF vierge → rempli de votre côté → importé + résumé ---- */}
+      <div className="card" style={{ marginTop: 16, border: (client.auditPdfFile || client.auditPdf) ? undefined : `2px solid ${GOLD}` }}>
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" }}>
           <h2 style={{ fontSize: 17 }}>
-            🩺 Audit patrimonial {client.auditPdf
-              ? <span className="badge b-navy" style={{ marginLeft: 6 }}>✓ enregistré le {fmtDate(client.auditPdf.doneAt)}</span>
+            🩺 Audit patrimonial {(client.auditPdfFile || client.auditPdf)
+              ? <span className="badge b-navy" style={{ marginLeft: 6 }}>✓ {client.auditPdfFile ? `importé le ${fmtDate(client.auditPdfFile.doneAt)}` : `enregistré le ${fmtDate(client.auditPdf.doneAt)}`}</span>
               : <span className="badge b-gold" style={{ marginLeft: 6 }}>À réaliser</span>}
           </h2>
-          <div className="row">
-            {client.auditPdf && <button className="btn ghost sm" onClick={() => downloadAuditPdf(client)}>⬇️ Télécharger le PDF</button>}
-            <button className="btn gold sm" onClick={() => setShowFiche(true)}>
-              {client.auditPdf ? "🖊️ Ouvrir / modifier le PDF" : "🖊️ Remplir le PDF d'audit"}
-            </button>
+          <div className="row" style={{ flexWrap: "wrap" }}>
+            <button className="btn ghost sm" onClick={() => {
+              const a = document.createElement("a");
+              a.href = "/audit-elyon.pdf"; a.download = "Audit patrimonial Elyon.pdf";
+              document.body.appendChild(a); a.click(); a.remove();
+            }}>📄 PDF vierge</button>
+            {client.auditPdfFile && (
+              <button className="btn ghost sm" onClick={() => downloadFile(client.auditPdfFile.file.id, `Audit patrimonial Elyon - ${client.nom.toUpperCase()}.pdf`)}>
+                ⬇️ Télécharger l'audit
+              </button>
+            )}
+            {client.auditPdf && !client.auditPdfFile && <button className="btn ghost sm" onClick={() => downloadAuditPdf(client)}>⬇️ Télécharger l'audit</button>}
+            <FilePicker
+              label={client.auditPdfFile ? "🔄 Remplacer le PDF" : "📥 Importer l'audit rempli"}
+              onFiles={async (files) => {
+                const f = files[0]; if (!f) return;
+                /* si le PDF a été rempli numériquement, on lit ses champs pour préparer le résumé */
+                let extracted = null;
+                try {
+                  const stored = await sGet(`crm-file-${f.id}`);
+                  const bytes = Uint8Array.from(atob(stored.data), (ch) => ch.charCodeAt(0));
+                  const { PDFDocument } = await loadPdfLib();
+                  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+                  const values = {};
+                  doc.getForm().getFields().forEach((fd) => {
+                    try { const v = fd.getText ? fd.getText() : ""; if (v && v.trim()) values[fd.getName()] = v.trim(); } catch { }
+                  });
+                  if (Object.keys(values).length) extracted = values;
+                } catch { }
+                update({ ...client, auditPdfFile: { file: f, doneAt: todayISO() }, ...(extracted ? { auditPdf: { values: extracted, doneAt: todayISO() } } : {}) });
+                setShowResume(true);
+              }}
+              busyText="Import…"
+            />
+            {(client.auditPdfFile || client.auditResume) && <button className="btn gold sm" onClick={() => setShowResume(true)}>📝 {client.auditResume ? "Modifier le résumé" : "Compléter le résumé"}</button>}
           </div>
         </div>
-        {client.auditPdf
-          ? <AuditPdfSynthese client={client} />
-          : <div style={{ color: "#8593a8", fontSize: 13.5 }}>
-              Le document officiel « Audit Patrimonial ELYON » (3 pages) se remplit directement à l'écran, champ par champ sur le PDF.
-              Une fois enregistré, le PDF rempli « Audit patrimonial Elyon » est téléchargeable et son résumé s'affiche ici.
-            </div>}
+        {client.auditResume
+          ? <AuditResumeSynthese r={client.auditResume.f} />
+          : client.auditPdf
+            ? <AuditPdfSynthese client={client} />
+            : <div style={{ color: "#8593a8", fontSize: 13.5 }}>
+                Téléchargez le <b>PDF vierge</b>, remplissez-le de votre côté (Aperçu, Acrobat ou à la main puis scanné),
+                puis <b>importez-le</b> ici : il restera téléchargeable sur la fiche, et un résumé synthétique s'affichera à cet endroit.
+              </div>}
       </div>
+
+      {showResume && (
+        <AuditResumeModal
+          client={client}
+          onClose={() => setShowResume(false)}
+          onSave={(f) => { update({ ...client, auditResume: { f, doneAt: (client.auditResume || {}).doneAt || todayISO() } }); setShowResume(false); }}
+        />
+      )}
 
       {showRdv && (
         <RdvClientForm
@@ -2215,6 +2265,34 @@ function DocsPage({ docs, saveDocs, toTrash }) {
 /* ================= ÉQUIPE (Quentin uniquement) ================= */
 function TeamPage({ users, saveUsers, sales, saveSales, me, settings, saveSettings }) {
   const [bgUrl, setBgUrl] = useState((settings || {}).loginBgUrl || "");
+  const [fondBusy, setFondBusy] = useState(false);
+
+  /* Applique un fond pré-intégré : l'image est TÉLÉCHARGÉE puis stockée dans le CRM
+     (plus aucune dépendance à un site externe au moment de la connexion) */
+  const appliquerFond = async (id) => {
+    if (!id) { saveSettings({ ...settings, loginBg: "", loginBgPreset: "" }); return; }
+    const p = FONDS_LOGIN.find((x) => x.id === id);
+    if (!p) return;
+    setFondBusy(true);
+    try {
+      const rep = await fetch(p.url);
+      if (!rep.ok) throw new Error("HTTP " + rep.status);
+      const blob = await rep.blob();
+      const dataUrl = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = () => rej(new Error("lecture impossible"));
+        r.readAsDataURL(blob);
+      });
+      await saveSettings({ ...settings, loginBg: dataUrl, loginBgPreset: id });
+      alert("Fond appliqué et stocké dans le CRM ✓\nDéconnectez-vous pour voir le résultat.");
+    } catch (e) {
+      /* repli : on enregistre le lien direct */
+      saveSettings({ ...settings, loginBg: p.url, loginBgPreset: id });
+      alert("Fond appliqué (lien direct) ✓ Déconnectez-vous pour voir le résultat.");
+    }
+    setFondBusy(false);
+  };
   const [f, setF] = useState({ prenom: "", nom: "", bareme: "Commercial" });
   const addUser = () => {
     if (!f.prenom.trim() || !f.nom.trim()) { alert("Renseignez le prénom et le nom."); return; }
@@ -2247,24 +2325,20 @@ function TeamPage({ users, saveUsers, sales, saveSales, me, settings, saveSettin
       <div className="card" style={{ marginBottom: 18 }}>
         <h2 style={{ fontSize: 17, marginBottom: 6 }}>🎨 Personnalisation — écran de connexion</h2>
         <p style={{ fontSize: 12.5, color: "#5b6b82", marginBottom: 10 }}>
-          Ajoutez une image de fond à l'écran de connexion : collez un lien (URL d'image) ou importez un fichier (JPG/PNG, 1,5 Mo max).
+          Ajoutez une image de fond à l'écran de connexion : collez un lien (URL d'image) ou importez un fichier (JPG/PNG, 2,5 Mo max).
         </p>
         <div className="row" style={{ alignItems: "flex-end", flexWrap: "wrap", marginBottom: 10 }}>
           <Field label="Fonds proposés">
             <select
               className="sel" style={{ width: 260 }}
               value={(settings || {}).loginBgPreset || ""}
-              onChange={(e) => {
-                const id = e.target.value;
-                if (!id) { saveSettings({ ...settings, loginBg: "", loginBgPreset: "" }); return; }
-                const p = FONDS_LOGIN.find((x) => x.id === id);
-                if (p) saveSettings({ ...settings, loginBg: p.url, loginBgPreset: id });
-              }}
+              onChange={(e) => appliquerFond(e.target.value)}
             >
               <option value="">— Aucun fond (bleu marine uni) —</option>
               {FONDS_LOGIN.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}
             </select>
           </Field>
+          {fondBusy && <span style={{ fontSize: 12.5, color: "#7a5c17", paddingBottom: 10 }}>⏳ Téléchargement de l'image…</span>}
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, cursor: "pointer", paddingBottom: 9, fontWeight: 600, color: NAVY }}>
             <input type="checkbox" checked={!!(settings || {}).loginBgNB}
               onChange={(e) => saveSettings({ ...settings, loginBgNB: e.target.checked })} />
@@ -2273,7 +2347,7 @@ function TeamPage({ users, saveUsers, sales, saveSales, me, settings, saveSettin
         </div>
         <div className="row" style={{ marginBottom: 12 }}>
           {FONDS_LOGIN.map((p) => (
-            <div key={p.id} onClick={() => saveSettings({ ...settings, loginBg: p.url, loginBgPreset: p.id })}
+            <div key={p.id} onClick={() => appliquerFond(p.id)}
               title={p.nom + " — cliquer pour appliquer"}
               style={{ cursor: "pointer", textAlign: "center" }}>
               <img src={p.url} alt={p.nom}
@@ -2300,7 +2374,7 @@ function TeamPage({ users, saveUsers, sales, saveSales, me, settings, saveSettin
             📁 Importer une image
             <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => {
               const f = e.target.files[0]; if (!f) return;
-              if (f.size > 1.5 * 1024 * 1024) { alert("Image trop lourde (1,5 Mo max) — utilisez plutôt un lien URL."); return; }
+              if (f.size > 2.5 * 1024 * 1024) { alert("Image trop lourde (2,5 Mo max) — utilisez plutôt un lien URL."); return; }
               const r = new FileReader();
               r.onload = () => { saveSettings({ ...settings, loginBg: r.result, loginBgPreset: "" }); alert("Image de fond enregistrée ✓ Déconnectez-vous pour voir le résultat."); };
               r.readAsDataURL(f);
@@ -3359,7 +3433,7 @@ function TrashPage({ trash, saveTrash, users, restoreClient, restoreProspect, re
   const daysLeft = (deletedAt) => Math.max(0, 30 - Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000));
 
   const purgeFiles = (item) => {
-    if (item.kind === "client") (item.data.contrats || []).forEach((k) => (k.fichiers || []).forEach((f) => sDel(`crm-file-${f.id}`)));
+    if (item.kind === "client") { (item.data.contrats || []).forEach((k) => (k.fichiers || []).forEach((f) => sDel(`crm-file-${f.id}`))); if (item.data.auditPdfFile) sDel(`crm-file-${item.data.auditPdfFile.file.id}`); }
     if (item.kind === "doc") (item.data.files || []).forEach((f) => sDel(`crm-file-${f.id}`));
     if (item.kind === "fichier") sDel(`crm-file-${item.data.file.id}`);
   };
@@ -4697,4 +4771,84 @@ function dashPDF({ users, sales, clients, view }) {
   </body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 300);
+}
+
+/* ================= RÉSUMÉ SYNTHÉTIQUE DE L'AUDIT (saisie rapide) ================= */
+const RESUME_CHAMPS = [
+  ["situation", "👤 Situation / régime matrimonial", "ex : marié, communauté réduite aux acquêts, 2 enfants"],
+  ["revenus", "💶 Revenus annuels nets du foyer", "ex : 78 000 €"],
+  ["fiscalite", "🧾 Fiscalité (TMI, impôt, parts)", "ex : TMI 30 % · impôt 6 400 € · 3 parts"],
+  ["immobilier", "🏠 Immobilier & crédits", "ex : RP 420 k€ · crédit 950 €/mois jusque 2038"],
+  ["epargne", "🏦 Épargne & assurance vie", "ex : livrets 25 k€ · AV 60 k€ · PER 30 k€"],
+  ["prevoyance", "🛡️ Prévoyance en place", "ex : April, IJ + invalidité, 45 €/mois"],
+  ["objectifs", "🎯 Objectifs prioritaires", "ex : retraite, transmission, fiscalité"],
+  ["horizon", "⏳ Horizon & moyens", "ex : 10 ans · 400 €/mois · capital 15 k€"],
+  ["profil", "📊 Profil investisseur", "ex : équilibré"],
+  ["notes", "📝 Synthèse du rendez-vous", "points d'attention, critères de solution…"],
+];
+
+function AuditResumeModal({ client, onClose, onSave }) {
+  /* Pré-remplissage automatique si le PDF importé contenait des champs numériques */
+  const auto = (() => {
+    const v = ((client.auditPdf || {}).values) || {};
+    const get = (part) => {
+      const f = AUDIT_FIELDS.find((x) => x.l.includes(part) && (v[x.n] || "").trim());
+      return f ? v[f.n].trim() : "";
+    };
+    return {
+      situation: [get("Situation familiale"), get("Régime Mat")].filter(Boolean).join(" · "),
+      revenus: get("Total des revenus annuels nets") || get("Revenus annuels nets"),
+      fiscalite: [get("TMI") && "TMI " + get("TMI"), get("Impôt Net à payer") && "impôt " + get("Impôt Net à payer"), get("Revenu Imposable") && "RI " + get("Revenu Imposable")].filter(Boolean).join(" · "),
+      immobilier: [get("Loyer mensuel") && "loyer " + get("Loyer mensuel"), get("Taux d'endettement") && "endettement " + get("Taux d'endettement")].filter(Boolean).join(" · "),
+      prevoyance: [get("Compagnie"), get("Mensualité")].filter(Boolean).join(" · "),
+      horizon: [get("Horizon de temps"), get("Moyens en épargne") && get("Moyens en épargne") + "/mois", get("Moyens en capital") && "capital " + get("Moyens en capital")].filter(Boolean).join(" · "),
+      objectifs: get("Objectifs"),
+      notes: get("Critères de solution"),
+    };
+  })();
+  const [f, setF] = useState(() => {
+    const base = {};
+    RESUME_CHAMPS.forEach(([k]) => { base[k] = ((client.auditResume || {}).f || {})[k] || auto[k] || ""; });
+    return base;
+  });
+
+  return (
+    <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 640, maxHeight: "90vh", overflowY: "auto" }}>
+        <h2>📝 Résumé de l'audit — {client.nom.toUpperCase()} {client.prenom}</h2>
+        <p style={{ fontSize: 12.5, color: "#5b6b82", margin: "6px 0 14px" }}>
+          Les informations importantes de l'audit, en quelques lignes — elles s'afficheront en bas de la fiche client.
+          {Object.values(auto).some(Boolean) && " Certains champs ont été pré-remplis depuis le PDF importé : vérifiez-les."}
+        </p>
+        {RESUME_CHAMPS.map(([k, label, ph]) => (
+          <div key={k} style={{ marginBottom: 10 }}>
+            <Field label={label}>
+              {k === "notes"
+                ? <textarea className="ta" rows={2} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} placeholder={ph} />
+                : <input className="in" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} placeholder={ph} />}
+            </Field>
+          </div>
+        ))}
+        <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
+          <button className="btn ghost" onClick={onClose}>Annuler</button>
+          <button className="btn gold" onClick={() => onSave(f)}>✓ Enregistrer le résumé</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuditResumeSynthese({ r }) {
+  const items = RESUME_CHAMPS.map(([k, label]) => [label, (r || {})[k]]).filter(([, v]) => (v || "").trim());
+  if (!items.length) return <div style={{ color: "#8593a8", fontSize: 13.5 }}>Résumé vide — cliquez sur « Compléter le résumé ».</div>;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+      {items.map(([label, v]) => (
+        <div key={label} style={{ background: "#f8f9fc", borderRadius: 8, padding: "8px 10px", borderLeft: `3px solid ${GOLD}` }}>
+          <div style={{ fontSize: 10.5, color: "#8593a8", textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
+          <div style={{ fontSize: 12.5, color: NAVY, marginTop: 2, whiteSpace: "pre-wrap" }}>{v}</div>
+        </div>
+      ))}
+    </div>
+  );
 }
