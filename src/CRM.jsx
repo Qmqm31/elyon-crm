@@ -316,7 +316,7 @@ const CSS = `
   .ph h1 { font-size: 26px; }
   .ph .sub { color:#5b6b82; font-size: 13px; margin-top: 4px; }
   .card { background:#fff; border:1px solid #e3e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(11,37,69,.05); }
-  .grid { display:grid; gap: 14px; }
+  .grid { display:grid; gap: 12px; }
   .kpis { display:grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
   .kpi { background:#fff; border:1px solid #e3e8f0; border-left: 4px solid ${GOLD}; border-radius: 10px; padding: 14px 16px; transition: transform .15s, box-shadow .15s; }
   .kpi:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(11,37,69,.10); }
@@ -358,8 +358,15 @@ const CSS = `
   .b-navy { background:${NAVY}; color:#fff; } .b-gold { background:${GOLD}22; color:#8a6a1f; border:1px solid ${GOLD}66; }
   .b-green { background:#e4f3e6; color:#1d6b2a; } .b-red { background:#fbe4e2; color:#a33028; } .b-grey { background:#eef1f5; color:#41506a; }
   .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .clientcard { transition: transform .15s, box-shadow .15s, border-color .15s; }
+  .clientcard { display:flex; justify-content:space-between; align-items:center; gap:18px;
+    padding:16px 20px; background:#fff; border:1px solid #e3e8f0; border-radius:12px; cursor:pointer;
+    transition: transform .15s, box-shadow .15s, border-color .15s; }
   .clientcard:hover { border-color:${GOLD}; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(11,37,69,.10); }
+  .clientline { display:grid; grid-template-columns: 240px minmax(0,1.2fr) 150px minmax(0,1fr); gap:20px; align-items:center; flex:1; min-width:0; }
+  .clientline .cl-nom { font-size:15px; font-weight:700; color:${NAVY}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .clientline .cl-info { font-size:13px; color:#5b6b82; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .clientline .cl-info .ic { margin-right:6px; }
+  .clientline .cl-mail { color:#8593a8; font-size:12.5px; }
   .filelink { display:flex; justify-content:space-between; align-items:center; padding: 8px 12px; background:${LIGHT}; border:1px solid #e3e8f0; border-radius:8px; font-size:13px; margin-bottom:6px; }
   .alertline { position:relative; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 11px 7px 30px; border-radius:8px; border:1px solid #e3e8f0; background:#fff; margin-bottom:6px; font-size:12.5px; line-height:1.45; }
   .alertline b { font-weight:600; }
@@ -1299,20 +1306,12 @@ function ClientsPage({ clients, saveClients, me, users, openClient }) {
 
       <div className="grid">
         {filtered.map((c) => (
-          <div className="clientcard" key={c.id} onClick={() => openClient(c.id)} style={{ padding: "13px 18px" }}>
+          <div className="clientcard" key={c.id} onClick={() => openClient(c.id)}>
             <div className="clientline">
-              <b style={{ fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {c.nom.toUpperCase()} {c.prenom}
-              </b>
-              <span style={{ fontSize: 13, color: "#5b6b82", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                💼 {c.profession || "Profession non renseignée"}{c.ville ? ` · 📍 ${c.ville}` : ""}
-              </span>
-              <span style={{ fontSize: 13, color: "#5b6b82", whiteSpace: "nowrap" }}>
-                📞 {(c.telephone || "—").replace(/\s/g, "")}
-              </span>
-              <span style={{ fontSize: 12.5, color: "#8593a8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                ✉️ {c.email || "—"}
-              </span>
+              <span className="cl-nom">{c.nom.toUpperCase()} {c.prenom}</span>
+              <span className="cl-info"><span className="ic">💼</span>{c.profession || "Profession non renseignée"}{c.ville ? ` · 📍 ${c.ville}` : ""}</span>
+              <span className="cl-info"><span className="ic">📞</span>{(c.telephone || "—").replace(/\s/g, "")}</span>
+              <span className="cl-info cl-mail"><span className="ic">✉️</span>{c.email || "—"}</span>
             </div>
             <div className="row" style={{ flexShrink: 0 }}>
               {me.isManager && <span className="badge b-grey">👤 {ownerName(c)}</span>}
