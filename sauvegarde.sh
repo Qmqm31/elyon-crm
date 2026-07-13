@@ -8,7 +8,7 @@ echo "💾 Sauvegarde des données du CRM..."
 {
   echo '{'
   PREM=1
-  for KEY in crm-users crm-clients crm-sales crm-docs crm-bordereaux crm-prospection crm-objectifs crm-trash; do
+  for KEY in crm-users crm-clients crm-sales crm-docs crm-bordereaux crm-prospection crm-objectifs crm-trash crm-rdv-clients crm-mailtpl crm-settings crm-objectifs-prospection; do
     VAL=$(curl -s -u "elyon:$CODE" "$URL/api/storage/$KEY")
     if [ "$PREM" = "1" ]; then PREM=0; else echo ','; fi
     printf '"%s": %s' "$KEY" "${VAL:-null}"
