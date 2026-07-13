@@ -2872,15 +2872,14 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
               <th>Prév.</th>
               <th>Qualité prise</th>
               <th>Note RDV</th>
-              <th style={{ width: "16%" }}>Commentaire</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {rowsList.map((p) => (
-              <tr key={p.id} style={PROSPECTION_ROW_BG[p.statut] ? { background: PROSPECTION_ROW_BG[p.statut] } : undefined}>
+              <tr key={p.id} title={(p.commentaire || "").trim() ? "💬 " + p.commentaire.trim() : undefined} style={PROSPECTION_ROW_BG[p.statut] ? { background: PROSPECTION_ROW_BG[p.statut] } : undefined}>
                 {me.isManager && <td style={{ fontSize: 12.5 }}>{ownerName(p)}</td>}
-                <td><b>{(p.nom || "").toUpperCase()} {p.prenom}</b>
+                <td><b>{(p.nom || "").toUpperCase()} {(p.prenom || "").toUpperCase()}</b>{(p.commentaire || "").trim() && <span style={{ marginLeft: 5, fontSize: 12, cursor: "help" }} title={p.commentaire.trim()}>💬</span>}
                   {p.ville && <div style={{ fontSize: 11.5, color: "#8593a8" }}>{p.ville}</div>}
                   {p.convertedClientId && (
                     <div>
@@ -2888,7 +2887,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
                     </div>
                   )}
                 </td>
-                <td style={{ fontSize: 12.5 }}>{p.profession || "—"}</td>
+                <td style={{ fontSize: 12.5 }}>{(p.profession || "—").toUpperCase()}</td>
                 <td style={{ fontSize: 12.5 }}>{(p.telephone || "").replace(/\s/g, "") || "—"}</td>
                 <td style={{ fontSize: 12.5 }}>{p.dateNaissance ? fmtDate(p.dateNaissance) : "—"}</td>
                 <td style={{ fontSize: 12.5 }}>{fmtDate(p.dateAppel)}</td>
@@ -2898,12 +2897,11 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
                 <td style={{ fontSize: 12.5 }}>{p.prevoyance || "—"}</td>
                 <td><Stars value={p.qualitePrise} /></td>
                 <td><Stars value={p.noteRdv} /></td>
-                <td style={{ fontSize: 12, color: "#5b6b82" }}>{p.commentaire || "—"}</td>
                 <td><button className="btn ghost sm" onClick={() => { setEditEntry(p); setShowForm(true); }}>✏️</button></td>
               </tr>
             ))}
             {rowsList.length === 0 && (
-              <tr><td colSpan={me.isManager ? 14 : 13} style={{ color: "#8593a8", fontSize: 13.5, padding: 18 }}>{emptyMsg}</td></tr>
+              <tr><td colSpan={me.isManager ? 13 : 12} style={{ color: "#8593a8", fontSize: 13.5, padding: 18 }}>{emptyMsg}</td></tr>
             )}
           </tbody>
         </table>
