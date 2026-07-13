@@ -13,8 +13,8 @@ const loadPdfjs = async () => {
 };
 
 /* ================= CONSTANTES ================= */
-const NAVY = "#0B2545";
-const NAVY2 = "#13315C";
+const NAVY = "#071A33";
+const NAVY2 = "#0D2447";
 const GOLD = "#C9A24B";
 const LIGHT = "#F5F7FA";
 
@@ -88,7 +88,7 @@ const PROSPECTION_STATUTS = [
 const PROSPECTION_COLORS = {
   "1er appel — pas de réponse": "#b58900", "2e appel — pas de réponse": "#d97706", "3e appel — pas de réponse": "#b45309",
   "Pas de réponse": "#b58900", "À rappeler": "#b58900", "Refus": "#B3261E", "KO — ne plus rappeler": "#8f1d1d",
-  "RDV pris": "#1b7a3d", "RDV honoré": "#0B2545",
+  "RDV pris": "#1b7a3d", "RDV honoré": "#071A33",
   "RDV annulé": "#B3261E", "RDV reporté": "#b58900", "Proposition envoyée": "#7a5c17", "Signé": "#1b7a3d", "Perdu": "#B3261E",
 };
 /* Couleur de fond des LIGNES du tableau de prospection (texte foncé conservé = lisible) */
@@ -315,11 +315,11 @@ const CSS = `
   .ph { display:flex; align-items:flex-end; justify-content:space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
   .ph h1 { font-size: 26px; }
   .ph .sub { color:#5b6b82; font-size: 13px; margin-top: 4px; }
-  .card { background:#fff; border:1px solid #e3e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(11,37,69,.05); }
+  .card { background:#fff; border:1px solid #e3e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(7,26,51,.05); }
   .grid { display:grid; gap: 12px; }
   .kpis { display:grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
   .kpi { background:#fff; border:1px solid #e3e8f0; border-left: 4px solid ${GOLD}; border-radius: 10px; padding: 14px 16px; transition: transform .15s, box-shadow .15s; }
-  .kpi:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(11,37,69,.10); }
+  .kpi:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(7,26,51,.10); }
   .kpi .n { font-size: 26px; font-weight: 700; font-family: Georgia, serif; }
   .kpi .l { font-size: 12px; color:#5b6b82; text-transform: uppercase; letter-spacing: .8px; margin-top:2px; }
   .btn { background:${NAVY}; color:#fff; border:none; border-radius:8px; padding: 9px 16px; cursor:pointer; font-size: 14px; }
@@ -349,7 +349,7 @@ const CSS = `
   tr.paye td { background:#e4f3e6; } tr.annule td { background:#fbe4e2; } tr.decom td { background:#f8d0cc; color:#7a1410; font-weight:600; }
   .totrow td { background:${NAVY}; color:#fff; font-weight:700; padding: 10px 8px; }
   .nprow td { background:#fdf6e7; font-weight:600; }
-  .modal-bg { position:fixed; inset:0; background:rgba(11,37,69,.55); display:flex; align-items:flex-start; justify-content:center; padding: 40px 16px; z-index:50; overflow:auto; }
+  .modal-bg { position:fixed; inset:0; background:rgba(7,26,51,.55); display:flex; align-items:flex-start; justify-content:center; padding: 40px 16px; z-index:50; overflow:auto; }
   .modal { background:#fff; border-radius: 16px; padding: 26px; width: 100%; max-width: 760px; box-shadow: 0 24px 70px rgba(0,0,0,.32); }
   .modal h2 { font-size: 18px; margin-bottom: 4px; }
   .modal .lbl { margin-top: 2px; }
@@ -361,7 +361,7 @@ const CSS = `
   .clientcard { display:flex; justify-content:space-between; align-items:center; gap:18px;
     padding:16px 20px; background:#fff; border:1px solid #e3e8f0; border-radius:12px; cursor:pointer;
     transition: transform .15s, box-shadow .15s, border-color .15s; }
-  .clientcard:hover { border-color:${GOLD}; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(11,37,69,.10); }
+  .clientcard:hover { border-color:${GOLD}; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(7,26,51,.10); }
   .clientline { display:grid; grid-template-columns: 240px minmax(0,1.2fr) 150px minmax(0,1fr); gap:20px; align-items:center; flex:1; min-width:0; }
   .clientline .cl-nom { font-size:15px; font-weight:700; color:${NAVY}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .clientline .cl-info { font-size:13px; color:#5b6b82; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -580,6 +580,7 @@ export default function App() {
     return (
       <Login
         users={users}
+        settings={settings}
         onLogin={(u) => { setMe(u); setViewAs(u); setPage("dash"); }}
         onSetPassword={(userId, pwd) => {
           saveUsers(users.map((u) => (u.id === userId ? { ...u, password: pwd } : u)));
@@ -804,7 +805,7 @@ function Login({ users, settings, onLogin, onSetPassword }) {
             filter: (settings || {}).loginBgNB ? "grayscale(1)" : "none",
           }} />
         )}
-        {bg && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(rgba(11,37,69,.55), rgba(11,37,69,.72))" }} />}
+        {bg && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(rgba(7,26,51,.55), rgba(7,26,51,.72))" }} />}
         <div className="loginbox" style={{ background: "rgba(255,255,255,.96)", backdropFilter: "blur(6px)", position: "relative", zIndex: 2 }}>
           <div style={{ width: 62, height: 62, margin: "0 auto 12px", borderRadius: "50%", border: `2px solid ${GOLD}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Georgia, serif", fontSize: 26, color: NAVY, background: "#fff" }}>
             E<span style={{ color: GOLD, fontSize: 18 }}>&</span>A
@@ -1014,7 +1015,7 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, pr
           <div
             onClick={() => saveUsers(users.map((u) => (u.id === me.id ? { ...u, relancesOff: relancesActives } : u)))}
             title="Alertes de relance : prospects inactifs 7 j et clients sans contact 6 mois"
-            style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none", background: "#fff", border: "1px solid #e3e8f0", borderRadius: 24, padding: "7px 14px", boxShadow: "0 1px 4px rgba(11,37,69,.06)" }}
+            style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none", background: "#fff", border: "1px solid #e3e8f0", borderRadius: 24, padding: "7px 14px", boxShadow: "0 1px 4px rgba(7,26,51,.06)" }}
           >
             <span style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>🔁 Relances</span>
             <span style={{
@@ -3249,7 +3250,7 @@ function RdvCalendar({ entries, mode, users, me, onOpen, onDayOpen, onCreateSlot
           position: "absolute", left: 3, right: 3, top: Math.max(0, top), height: HPX - 6,
           background: st.bg, borderLeft: `4px solid ${st.border}`, borderRadius: 8,
           padding: wide ? "5px 10px" : "3px 7px", cursor: "pointer", overflow: "hidden",
-          boxShadow: "0 1px 3px rgba(11,37,69,.12)", zIndex: 2,
+          boxShadow: "0 1px 3px rgba(7,26,51,.12)", zIndex: 2,
         }}
       >
         <div style={{ fontSize: wide ? 13 : 11.5, fontWeight: 700, color: st.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -4374,7 +4375,7 @@ function AuditPdfModal({ client, onClose, onSave }) {
         {pagesReady.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "#8593a8" }}>Chargement du document…</div>}
 
         {pagesReady.map((pg) => (
-          <div key={pg.i} style={{ position: "relative", margin: "14px auto", width: pg.w, boxShadow: "0 2px 14px rgba(11,37,69,.18)", borderRadius: 4 }}>
+          <div key={pg.i} style={{ position: "relative", margin: "14px auto", width: pg.w, boxShadow: "0 2px 14px rgba(7,26,51,.18)", borderRadius: 4 }}>
             <canvas ref={(el) => (canvasRefs.current[pg.i - 1] = el)} style={{ display: "block", borderRadius: 4 }} />
             {AUDIT_FIELDS.filter((f) => f.p === pg.i - 1).map((f) => {
               const left = f.x * scale;
@@ -4385,7 +4386,7 @@ function AuditPdfModal({ client, onClose, onSave }) {
                 title: f.l || undefined,
                 style: {
                   position: "absolute", left, top, width: f.w * scale, height: f.h * scale,
-                  fontSize: Math.max(8, 8.5 * scale), fontFamily: "inherit", color: "#0B2545",
+                  fontSize: Math.max(8, 8.5 * scale), fontFamily: "inherit", color: "#071A33",
                   background: (values[f.n] || "").trim() ? "rgba(201,162,75,.10)" : "rgba(29,111,184,.07)",
                   border: "1px dashed rgba(29,111,184,.35)", borderRadius: 2, padding: "0 2px",
                   outline: "none", resize: "none", lineHeight: 1.15,
@@ -4465,7 +4466,7 @@ function AuditPdfSynthese({ client }) {
 
 /* ================= ÉVOLUTION MENSUELLE PAR COMMERCIAL ================= */
 /* Une courbe par commercial, mois par mois, avec sélecteur d'année (2025, 2026…) */
-const EVOL_COLORS = ["#0B2545", "#C9A24B", "#1b7a3d", "#8e44ad", "#d35400", "#2980b9"];
+const EVOL_COLORS = ["#071A33", "#C9A24B", "#1b7a3d", "#8e44ad", "#d35400", "#2980b9"];
 
 function EvolutionCommerciaux({ sales, users: allUsers }) {
   const users = allUsers.filter((u) => !isTelepro(u));
@@ -4571,7 +4572,7 @@ function SaveIndicator() {
       position: "fixed", bottom: 18, right: 18, zIndex: 3000,
       background: conf.bg, border: `1.5px solid ${conf.border}`, color: conf.color,
       borderRadius: 10, padding: "9px 14px", fontSize: 13, fontWeight: 600,
-      boxShadow: "0 6px 24px rgba(11,37,69,.18)", display: "flex", alignItems: "center", gap: 10,
+      boxShadow: "0 6px 24px rgba(7,26,51,.18)", display: "flex", alignItems: "center", gap: 10,
     }}>
       {conf.txt}
       {status === "conflict" && <button className="btn gold sm" onClick={() => window.location.reload()}>↻ Recharger</button>}
