@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "esbuild src/main.jsx --bundle --minify --jsx=automatic --loader:.jsx=jsx --outfile=dist/app.js && esbuild node_modules/pdfjs-dist/legacy/build/pdf.worker.js --bundle --minify --outfile=dist/pdf.worker.js",
+    "build": "esbuild src/main.jsx --bundle --minify --jsx=automatic --loader:.jsx=jsx --format=esm --splitting --outdir=dist --entry-names=app --chunk-names=chunks/[name]-[hash] && esbuild node_modules/pdfjs-dist/legacy/build/pdf.worker.js --bundle --minify --outfile=dist/pdf.worker.js",
     "start": "node server.js"
   },
   "dependencies": {
     "esbuild": "^0.21.5",
     "express": "^4.19.2",
+    "compression": "^1.7.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "xlsx": "^0.18.5",
