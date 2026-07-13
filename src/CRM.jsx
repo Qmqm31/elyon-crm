@@ -169,14 +169,14 @@ const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-/* Rappel automatique tous les 4 mois à partir de la date de signature */
+/* Rappel automatique tous les 6 mois à partir de la date de signature */
 const nextFollowUp = (signatureISO) => {
   if (!signatureISO) return null;
   const sig = new Date(signatureISO + "T00:00:00");
   if (isNaN(sig)) return null;
   const now = new Date(); now.setHours(0, 0, 0, 0);
   let d = new Date(sig);
-  do { d = new Date(d.getFullYear(), d.getMonth() + 4, d.getDate()); } while (d < now);
+  do { d = new Date(d.getFullYear(), d.getMonth() + 6, d.getDate()); } while (d < now);
   return d;
 };
 const daysUntil = (date) => {
@@ -900,7 +900,7 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, pr
     return s;
   }, [clients]);
 
-  /* Alertes du jour / en retard + rappels 4 mois */
+  /* Alertes du jour / en retard + rappels 6 mois */
   const today = todayISO();
   const alerts = [];
   clients.forEach((c) => {
@@ -1118,7 +1118,7 @@ function Dashboard({ clients: allClients, users, view, me, sales, rdvClients, pr
                 </>
               ) : (
                 <>
-                  <b>Rappel client (4 mois)</b> — {a.client.prenom} {a.client.nom}
+                  <b>Rappel client (6 mois)</b> — {a.client.prenom} {a.client.nom}
                   <div style={{ fontSize: 12, color: "#8593a8" }}>
                     Contrat {a.contrat.type} {a.contrat.compagnie} signé le {fmtDate(a.contrat.dateSignature)} · à rappeler le {fmtDate(a.date)}
                     {a.days === 0 ? " (aujourd'hui)" : a.days > 0 ? ` (dans ${a.days} j)` : ""}
@@ -1659,7 +1659,7 @@ function ContractCard({ contract: k, onEdit, onDelete, onFiles, onFileDelete, on
         {k.type === "PER" && (
           <> · <b>Transfert interne :</b> {k.transfertInterne === "oui" ? `Oui${k.fraisTransfert === "oui" ? " (avec frais)" : " (sans frais)"}` : "Non"}</>
         )}
-        {nf && <> · <b>Prochain rappel (4 mois) :</b> <span style={{ color: GOLD, fontWeight: 600 }}>{nf.toLocaleDateString("fr-FR")}</span></>}
+        {nf && <> · <b>Prochain rappel (6 mois) :</b> <span style={{ color: GOLD, fontWeight: 600 }}>{nf.toLocaleDateString("fr-FR")}</span></>}
         {k.commentaire && <div style={{ marginTop: 4, fontStyle: "italic" }}>💬 {k.commentaire}</div>}
       </div>
       <div style={{ marginTop: 10 }}>
