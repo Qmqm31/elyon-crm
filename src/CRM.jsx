@@ -1308,8 +1308,8 @@ function ClientsPage({ clients, saveClients, me, users, openClient }) {
         {filtered.map((c) => (
           <div className="clientcard" key={c.id} onClick={() => openClient(c.id)}>
             <div className="clientline">
-              <span className="cl-nom">{c.nom.toUpperCase()} {c.prenom}</span>
-              <span className="cl-info"><span className="ic">💼</span>{c.profession || "Profession non renseignée"}{c.ville ? ` · 📍 ${c.ville}` : ""}</span>
+              <span className="cl-nom">{c.nom.toUpperCase()} {(c.prenom || "").toUpperCase()}</span>
+              <span className="cl-info"><span className="ic">💼</span>{(c.profession || "Profession non renseignée").toUpperCase()}{c.ville ? ` · 📍 ${c.ville}` : ""}</span>
               <span className="cl-info"><span className="ic">📞</span>{(c.telephone || "—").replace(/\s/g, "")}</span>
               <span className="cl-info cl-mail"><span className="ic">✉️</span>{c.email || "—"}</span>
             </div>
@@ -1394,7 +1394,7 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
       <div className="ph">
         <div>
           <button className="btn ghost sm" onClick={back}>← Retour aux clients</button>
-          <h1 style={{ marginTop: 10 }}>{client.nom.toUpperCase()} {client.prenom}</h1>
+          <h1 style={{ marginTop: 10 }}>{client.nom.toUpperCase()} {(client.prenom || "").toUpperCase()}</h1>
           <div className="sub">
             Fiche créée le {fmtDate(client.createdAt)}
             {" · Conseiller : "}
@@ -1426,7 +1426,7 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
               ["🎂", "Date de naissance", client.dateNaissance ? fmtDate(client.dateNaissance) : ""],
               ["📞", "Téléphone", client.telephone],
               ["✉️", "E-mail", client.email],
-              ["💼", "Profession", client.profession],
+              ["💼", "Profession", (client.profession || "").toUpperCase()],
               ["💶", "Revenus imposables", client.revenus ? fmtEUR(parseNum(client.revenus)) : ""],
               ["💍", "Situation", client.situation],
               ["👶", "Enfants", client.enfants],
@@ -2843,7 +2843,19 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
         />
       )}
 
-      {viewMode === "table" && (
+      {viewMode === "table" && (() => {
+        /* ---- Tri automatique par rendez-vous ---- */
+        const now = new Date();
+        const heureOk = (h) => (h && /^\d{1,2}[:hH]\d{2}/.test(h.trim())) ? h.trim().replace(/[hH]/, ":").padStart(5, "0") : "23:59";
+        const rdvDate = (p) => new Date(p.dateRdv + "T" + heureOk(p.heureRdv));
+        const estPasse = (p) => !!p.dateRdv && rdvDate(p) < now;
+        const cle = (p) => p.dateRdv ? p.dateRdv + "T" + heureOk(p.heureRdv) : "9999-12-31";
+
+        const passes = scoped.filter(estPasse).sort((a, b) => cle(b).localeCompare(cle(a)));
+        const actifs = scoped.filter((p) => !estPasse(p)).sort((a, b) => cle(a).localeCompare(cle(b)));
+        const nbAVenir = actifs.filter((p) => p.dateRdv).length;
+
+        const renderTable = (rowsList, emptyMsg) => (
       <div className="card" style={{ overflowX: "auto" }}>
         <table className="t">
           <thead>
@@ -2865,7 +2877,7 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
             </tr>
           </thead>
           <tbody>
-            {scoped.map((p) => (
+            {rowsList.map((p) => (
               <tr key={p.id} style={PROSPECTION_ROW_BG[p.statut] ? { background: PROSPECTION_ROW_BG[p.statut] } : undefined}>
                 {me.isManager && <td style={{ fontSize: 12.5 }}>{ownerName(p)}</td>}
                 <td><b>{(p.nom || "").toUpperCase()} {p.prenom}</b>
@@ -2890,13 +2902,28 @@ function ProspectionPage({ prospection, saveProspection, me, users, toTrash, cli
                 <td><button className="btn ghost sm" onClick={() => { setEditEntry(p); setShowForm(true); }}>✏️</button></td>
               </tr>
             ))}
-            {scoped.length === 0 && (
-              <tr><td colSpan={me.isManager ? 14 : 13} style={{ color: "#8593a8", fontSize: 13.5, padding: 18 }}>Aucune fiche. Cliquez sur « + Nouvel appel / RDV » pour enregistrer votre premier appel.</td></tr>
+            {rowsList.length === 0 && (
+              <tr><td colSpan={me.isManager ? 14 : 13} style={{ color: "#8593a8", fontSize: 13.5, padding: 18 }}>{emptyMsg}</td></tr>
             )}
           </tbody>
         </table>
       </div>
-      )}
+        );
+
+        return (
+          <>
+            <div className="row" style={{ justifyContent: "space-between", margin: "4px 0 8px" }}>
+              <h2 style={{ fontSize: 15 }}>📞 Prospection en cours {nbAVenir > 0 && <span style={{ fontSize: 12, color: "#8593a8", fontWeight: 400 }}>— {nbAVenir} RDV à venir, du plus proche au plus lointain</span>}</h2>
+            </div>
+            {renderTable(actifs, "Aucune fiche. Cliquez sur « + Nouvel appel / RDV » pour enregistrer votre premier appel.")}
+
+            <div className="row" style={{ justifyContent: "space-between", margin: "22px 0 8px" }}>
+              <h2 style={{ fontSize: 15 }}>✅ Rendez-vous passés <span style={{ fontSize: 12, color: "#8593a8", fontWeight: 400 }}>— basculés automatiquement dès que la date et l'heure sont dépassées</span></h2>
+            </div>
+            {renderTable(passes, "Aucun rendez-vous passé pour le moment.")}
+          </>
+        );
+      })()}
 
       {showImport && (
         <ImportListeModal
@@ -3617,7 +3644,7 @@ function RdvClientForm({ client, me, onClose, onSave }) {
   return (
     <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 520 }}>
-        <h2>📅 Planifier un RDV — {client.nom.toUpperCase()} {client.prenom}</h2>
+        <h2>📅 Planifier un RDV — {client.nom.toUpperCase()} {(client.prenom || "").toUpperCase()}</h2>
         <div style={{ marginTop: 12 }}>
           <Field label="Motif du rendez-vous">
             <select className="sel" style={{ width: "100%" }} value={f.motif} onChange={(e) => setF({ ...f, motif: e.target.value })}>
@@ -4215,7 +4242,7 @@ function CourrierModal({ client, onClose }) {
   return (
     <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 680, maxHeight: "88vh", overflowY: "auto" }}>
-        <h2>📄 Générer un courrier — {client.nom.toUpperCase()} {client.prenom}</h2>
+        <h2>📄 Générer un courrier — {client.nom.toUpperCase()} {(client.prenom || "").toUpperCase()}</h2>
         <div className="row" style={{ marginTop: 12 }}>
           <Field label="Type de courrier">
             <select className="sel" value={tplId} onChange={(e) => pick(e.target.value)}>
@@ -4339,7 +4366,7 @@ function AuditPdfModal({ client, onClose, onSave }) {
     <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 900, width: "min(900px, 96vw)", maxHeight: "94vh", overflowY: "auto" }} ref={wrapRef}>
         <div className="row" style={{ justifyContent: "space-between", position: "sticky", top: -18, background: "#fff", zIndex: 10, padding: "6px 0 10px", borderBottom: "1px solid #eef1f6" }}>
-          <h2 style={{ fontSize: 16 }}>🩺 Audit patrimonial — {client.nom.toUpperCase()} {client.prenom} <span style={{ fontSize: 12, color: "#8593a8", fontWeight: 400 }}>· {filled} champ(s) rempli(s)</span></h2>
+          <h2 style={{ fontSize: 16 }}>🩺 Audit patrimonial — {client.nom.toUpperCase()} {(client.prenom || "").toUpperCase()} <span style={{ fontSize: 12, color: "#8593a8", fontWeight: 400 }}>· {filled} champ(s) rempli(s)</span></h2>
           <div className="row">
             <button className="btn ghost sm" onClick={onClose}>Annuler</button>
             <button className="btn gold sm" onClick={() => onSave(values)}>💾 Enregistrer sur la fiche</button>
@@ -4816,7 +4843,7 @@ function AuditResumeModal({ client, onClose, onSave }) {
   return (
     <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 640, maxHeight: "90vh", overflowY: "auto" }}>
-        <h2>📝 Résumé de l'audit — {client.nom.toUpperCase()} {client.prenom}</h2>
+        <h2>📝 Résumé de l'audit — {client.nom.toUpperCase()} {(client.prenom || "").toUpperCase()}</h2>
         <p style={{ fontSize: 12.5, color: "#5b6b82", margin: "6px 0 14px" }}>
           Les informations importantes de l'audit, en quelques lignes — elles s'afficheront en bas de la fiche client.
           {Object.values(auto).some(Boolean) && " Certains champs ont été pré-remplis depuis le PDF importé : vérifiez-les."}
