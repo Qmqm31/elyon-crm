@@ -565,8 +565,7 @@ export default function App() {
       setRdvClients(rc || []);
       setSettings(st || {});
       setProsObj(po || {});
-      if (pf && pf.length) setPortefeuille(pf);
-      else { setPortefeuille(PORTEFEUILLE_SEED); sSet("crm-portefeuille", PORTEFEUILLE_SEED); }
+      setPortefeuille(pf || []);
       setMailTpl(mt && mt.length ? mt : DEFAULT_MAIL_TEMPLATES);
       if (!mt || !mt.length) await sSet("crm-mailtpl", DEFAULT_MAIL_TEMPLATES);
       /* Purge automatique de la corbeille après 30 jours */
@@ -5542,6 +5541,57 @@ function PortefeuillePage({ portefeuille, savePortefeuille }) {
   const nI = portefeuille.filter((r) => r.statut === "INACTIF").length;
   const nbProd = (k) => portefeuille.filter((r) => (r[k] || "").trim()).length;
 
+  const importXls = async (file, ev) => {
+    if (!file) return;
+    try {
+      const XLSX = await loadXLSX();
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      /* trouver la ligne d'en-têtes (celle qui contient NOM) */
+      let hRow = data.findIndex((r) => r.some((c) => String(c).toUpperCase().includes("NOM")));
+      if (hRow < 0) { alert("Impossible de trouver la ligne d'en-têtes (colonne NOM introuvable)."); return; }
+      const heads = data[hRow].map((h) => String(h).toUpperCase().trim());
+      const col = (...parts) => heads.findIndex((h) => parts.some((p) => h.includes(p)));
+      const ix = {
+        adhesion: col("ADHESION", "DATE"), statut: col("STATUT"), tel: col("TELEPHONE", "TEL"),
+        email: col("MAIL"), nom: col("NOM"), per1: heads.findIndex((h) => h === "PER" || h.includes("PER 1") || h.includes("PER1")),
+        per2: col("PER 2", "PER2", "PER (2)"), prev: col("PREV"), pj: col("IAG", "JURIDIQUE"), av: col("ASS", "VIE"), com: col("COMMENT"),
+      };
+      const clean = (v) => String(v == null ? "" : v).replace(/[\u2028\u2029]/g, " ").trim();
+      const toISO = (v) => {
+        if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+        const s = clean(v);
+        let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+        if (m) return `${m[3].length === 2 ? "20" + m[3] : m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+        m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? m[0] : "";
+      };
+      const get = (row, i) => (i >= 0 ? clean(row[i]) : "");
+      const rows = [];
+      for (let i = hRow + 1; i < data.length; i++) {
+        const r = data[i];
+        if (!r || !r.some((c) => clean(c))) continue;
+        const nom = get(r, ix.nom).toUpperCase();
+        if (!nom) continue;
+        const st = get(r, ix.statut).toUpperCase();
+        rows.push({
+          id: uid(), adhesion: ix.adhesion >= 0 ? toISO(r[ix.adhesion]) : "",
+          statut: st === "INACTIF" ? "INACTIF" : (st ? "ACTIF" : ""),
+          telephone: get(r, ix.tel).replace(/\s/g, ""), email: get(r, ix.email), nom,
+          per1: get(r, ix.per1), per2: get(r, ix.per2), prev: get(r, ix.prev),
+          pj: get(r, ix.pj), av: get(r, ix.av), commentaires: get(r, ix.com),
+        });
+      }
+      if (!rows.length) { alert("Aucune ligne exploitable trouvée dans ce fichier."); return; }
+      const remplacer = portefeuille.length === 0 || confirm(`${rows.length} client(s) trouvé(s).\n\nOK = REMPLACER le tableau actuel (${portefeuille.length} lignes)\nAnnuler = AJOUTER à la suite`);
+      savePortefeuille(remplacer ? rows : [...portefeuille, ...rows]);
+      alert(`Import réussi ✓ ${rows.length} client(s) ${remplacer ? "importés" : "ajoutés"}.`);
+    } catch (err) { alert("Import impossible : " + err.message); }
+    if (ev && ev.target) ev.target.value = "";
+  };
+
   const exportXls = async () => {
     const XLSX = await loadXLSX();
     const data = [["ADHESION", "STATUT", "TELEPHONE", "MAILS", "NOM PRENOM", "PER 1", "PER 2", "PREVOYANCE", "PROTECTION JURIDIQUE", "ASSURANCE VIE", "COMMENTAIRES"],
@@ -5561,6 +5611,10 @@ function PortefeuillePage({ portefeuille, savePortefeuille }) {
           <div className="sub">{portefeuille.length} client(s) · vue d'ensemble des contrats</div>
         </div>
         <div className="row">
+          <label className="btn ghost" style={{ cursor: "pointer" }}>
+            📤 Importer Excel
+            <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={(e) => importXls(e.target.files[0], e)} />
+          </label>
           <button className="btn ghost" onClick={exportXls}>📥 Export Excel</button>
           <button className="btn gold" onClick={add}>+ Ajouter un client</button>
         </div>
