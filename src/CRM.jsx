@@ -382,6 +382,19 @@ const CSS = `
   .loginbox .gold { color:${GOLD}; letter-spacing: 3px; font-size: 11px; text-transform: uppercase; text-align:center; display:block; margin-bottom: 26px; margin-top: 4px; }
   .userbtn { display:flex; justify-content:space-between; align-items:center; width:100%; padding: 13px 16px; border:1px solid #cdd6e2; border-radius:10px; background:#fff; cursor:pointer; font-size: 15px; margin-bottom: 10px; }
   .userbtn:hover { border-color:${GOLD}; background:#fdf9f0; }
+  /* ---- Tableaux quadrillés du parcours d'audit ---- */
+  table.wt { border-collapse: collapse; width:100%; }
+  table.wt th { background:${NAVY}; color:#fff; border:1px solid #2c405f; font-size:10.5px; letter-spacing:.4px; padding:8px 6px; text-transform:uppercase; }
+  table.wt td { border:1px solid #cdd6e2; padding:3px; }
+  table.wt tbody tr:nth-child(even) td { background:#f6f8fc; }
+  table.wt tbody tr:hover td { background:#fdf6e7; }
+  table.wt td.rowlab { background:#eef1f6; border-right:3px solid ${GOLD}; padding:6px 10px; min-width:150px; }
+  table.wt input { padding:7px 6px; font-size:12.5px; }
+  .crm.dark table.wt td { border-color:#2c405f; }
+  .crm.dark table.wt tbody tr:nth-child(even) td { background:#16233a; }
+  .crm.dark table.wt tbody tr:hover td { background:#2a2517; }
+  .crm.dark table.wt td.rowlab { background:#1b2c47; }
+
   /* ============ MODE SOMBRE ============ */
   .crm.dark { background:#0d1726; }
   .crm.dark .main { background:#0d1726; }
@@ -1447,24 +1460,22 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
           )}
         </div>
 
-        <div className="card">
+        <div className="card" style={{ borderTop: `3px solid ${GOLD}` }}>
           <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
-            <h2 style={{ fontSize: 17 }}>🔔 Alertes</h2>
-            <button className="btn sm gold" onClick={() => setShowAlert(true)}>+ Créer une alerte</button>
+            <h2 style={{ fontSize: 17 }}>🩺 Résumé de l'audit patrimonial</h2>
+            {(client.auditForm || client.auditPdfFile || client.auditResume || client.auditPdf)
+              ? <span className="badge b-navy">✓ réalisé</span>
+              : <button className="btn sm gold" onClick={() => setShowWizard(true)}>🩺 Remplir l'audit</button>}
           </div>
-          {(client.alertes || []).length === 0 && <div style={{ color: "#8593a8", fontSize: 13.5 }}>Aucune alerte programmée.</div>}
-          {(client.alertes || []).slice().sort((a, b) => a.date.localeCompare(b.date)).map((a) => (
-            <div className={"alertline" + (!a.done && a.date <= todayISO() ? " today" : "")} key={a.id} style={a.done ? { opacity: 0.5 } : {}}>
-              <div>
-                <b>{a.type}</b>{a.note && <span style={{ color: "#5b6b82" }}> · {a.note}</span>}
-                <div style={{ fontSize: 12, color: "#8593a8" }}>Rappel le {fmtDate(a.date)} {a.done && "· ✓ fait"}</div>
-              </div>
-              <div className="row">
-                <button className="btn ghost sm" onClick={() => toggleAlert(a.id)}>{a.done ? "Réactiver" : "✓ Fait"}</button>
-                <button className="btn danger sm" onClick={() => delAlert(a.id)}>✕</button>
-              </div>
-            </div>
-          ))}
+          {client.auditForm
+            ? <AuditFormSynthese f={client.auditForm.f} cols={2} />
+            : client.auditResume
+              ? <AuditResumeSynthese r={client.auditResume.f} cols={2} />
+              : client.auditPdf
+                ? <AuditPdfSynthese client={client} cols={2} />
+                : <div style={{ color: "#8593a8", fontSize: 13.5 }}>
+                    Aucun audit pour le moment. Lancez le <b>parcours guidé</b> : 13 sections, puis le PDF officiel est généré et archivé automatiquement — et son résumé s'affichera ici, en face des informations personnelles.
+                  </div>}
         </div>
       </div>
 
@@ -1569,18 +1580,32 @@ function ClientDetail({ client, me, users, rdvClients, saveRdvClients, back, upd
             <button className="btn gold sm" onClick={() => setShowWizard(true)}>🩺 {client.auditForm ? "Reprendre l'audit guidé" : "Remplir l'audit (guidé)"}</button>
           </div>
         </div>
-        {client.auditForm
-          ? <AuditFormSynthese f={client.auditForm.f} />
-          : client.auditResume
-          ? <AuditResumeSynthese r={client.auditResume.f} />
-          : client.auditPdf
-            ? <AuditPdfSynthese client={client} />
-            : <div style={{ color: "#8593a8", fontSize: 13.5 }}>
-                Le plus simple : <b>🩺 Remplir l'audit (guidé)</b> — un parcours en 13 sections identiques au document papier.
-                À la fin, le CRM <b>remplit lui-même le PDF officiel</b>, le télécharge et l'archive sur cette fiche, avec un résumé affiché ici.
-                Vous pouvez aussi télécharger le PDF vierge ou importer un PDF déjà rempli.
-              </div>}
+        <div style={{ color: "#8593a8", fontSize: 13 }}>
+          {(client.auditForm || client.auditPdfFile)
+            ? "Le résumé de l'audit est affiché en haut de la fiche, à droite des informations personnelles."
+            : "Le plus simple : 🩺 Remplir l'audit (guidé) — 13 sections identiques au document papier, puis le CRM remplit le PDF officiel, le télécharge et l'archive ici."}
+        </div>
       </div>
+
+        <div className="card">
+          <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+            <h2 style={{ fontSize: 17 }}>🔔 Alertes</h2>
+            <button className="btn sm gold" onClick={() => setShowAlert(true)}>+ Créer une alerte</button>
+          </div>
+          {(client.alertes || []).length === 0 && <div style={{ color: "#8593a8", fontSize: 13.5 }}>Aucune alerte programmée.</div>}
+          {(client.alertes || []).slice().sort((a, b) => a.date.localeCompare(b.date)).map((a) => (
+            <div className={"alertline" + (!a.done && a.date <= todayISO() ? " today" : "")} key={a.id} style={a.done ? { opacity: 0.5 } : {}}>
+              <div>
+                <b>{a.type}</b>{a.note && <span style={{ color: "#5b6b82" }}> · {a.note}</span>}
+                <div style={{ fontSize: 12, color: "#8593a8" }}>Rappel le {fmtDate(a.date)} {a.done && "· ✓ fait"}</div>
+              </div>
+              <div className="row">
+                <button className="btn ghost sm" onClick={() => toggleAlert(a.id)}>{a.done ? "Réactiver" : "✓ Fait"}</button>
+                <button className="btn danger sm" onClick={() => delAlert(a.id)}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
 
       {showWizard && (
         <AuditWizard
@@ -4452,7 +4477,7 @@ async function downloadAuditPdf(client) {
 }
 
 /* Résumé de l'audit : extrait les informations importantes du PDF rempli */
-function AuditPdfSynthese({ client }) {
+function AuditPdfSynthese({ client, cols }) {
   const values = ((client.auditPdf || {}).values) || {};
   const get = (part, page) => {
     const f = AUDIT_FIELDS.find((x) => (page === undefined || x.p === page) && x.l.includes(part) && (values[x.n] || "").trim());
@@ -4470,7 +4495,7 @@ function AuditPdfSynthese({ client }) {
   ].filter((x) => (x[2] || "").trim());
   if (!items.length) return <div style={{ color: "#8593a8", fontSize: 13.5 }}>Audit enregistré — remplissez les champs clés (revenus, TMI, moyens…) pour alimenter ce résumé.</div>;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols || 3}, 1fr)`, gap: 8 }}>
       {items.map(([ic, l, v]) => (
         <div key={l} style={{ background: "#f8f9fc", borderRadius: 8, padding: "8px 10px", borderLeft: `3px solid ${GOLD}` }}>
           <div style={{ fontSize: 10.5, color: "#8593a8", textTransform: "uppercase", letterSpacing: 0.5 }}>{ic} {l}</div>
@@ -4580,8 +4605,9 @@ function SaveIndicator() {
   const conf = {
     saving: { bg: "#eef3fa", border: "#c3d4ea", color: NAVY, txt: "💾 Enregistrement…" },
     saved: { bg: "#e4f3e6", border: "#1b7a3d", color: "#1b7a3d", txt: "✓ Enregistré" },
-    error: { bg: "#fdecea", border: "#B3261E", color: "#B3261E", txt: "⚠️ Enregistrement impossible — vérifiez votre connexion puis réessayez" },
-    offline: { bg: "#fdecea", border: "#B3261E", color: "#B3261E", txt: "📡 Hors ligne — vos modifications ne sont PAS enregistrées" },
+    error: { bg: "#fdecea", border: "#B3261E", color: "#B3261E", txt: "⚠️ Enregistrement impossible — vos saisies sont conservées et renvoyées automatiquement" },
+    offline: { bg: "#fdf3d7", border: GOLD, color: "#7a5c17", txt: "📡 Hors ligne — vos saisies sont mises en attente et seront envoyées automatiquement au retour du réseau" },
+    queued: { bg: "#fdf3d7", border: GOLD, color: "#7a5c17", txt: "⏳ Enregistrement en attente — nouvel essai automatique dans quelques secondes (ne fermez pas l'onglet)" },
     conflict: { bg: "#fdf3d7", border: GOLD, color: "#7a5c17", txt: "⚠️ Donnée modifiée par un autre utilisateur — rechargez la page avant de continuer" },
   }[status];
   return (
@@ -4882,11 +4908,11 @@ function AuditResumeModal({ client, onClose, onSave }) {
   );
 }
 
-function AuditResumeSynthese({ r }) {
+function AuditResumeSynthese({ r, cols }) {
   const items = RESUME_CHAMPS.map(([k, label]) => [label, (r || {})[k]]).filter(([, v]) => (v || "").trim());
   if (!items.length) return <div style={{ color: "#8593a8", fontSize: 13.5 }}>Résumé vide — cliquez sur « Compléter le résumé ».</div>;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols || 3}, 1fr)`, gap: 8 }}>
       {items.map(([label, v]) => (
         <div key={label} style={{ background: "#f8f9fc", borderRadius: 8, padding: "8px 10px", borderLeft: `3px solid ${GOLD}` }}>
           <div style={{ fontSize: 10.5, color: "#8593a8", textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
@@ -5039,12 +5065,12 @@ function AuditWizard({ client, me, onClose, onSave, onGenerate }) {
     </div>,
     /* 2 — REVENUS */
     <div style={{ overflowX: "auto" }}>
-      <table className="t">
+      <table className="t wt">
         <thead><tr><th style={{ textAlign: "left" }}></th><th>MONSIEUR</th><th>MADAME</th></tr></thead>
         <tbody>
           {REV_LIGNES.map(([k, label]) => (
             <tr key={k}>
-              <td style={{ textAlign: "left", fontSize: 12.5, fontWeight: 600, whiteSpace: "normal" }}>{label}</td>
+              <td className="rowlab" style={{ textAlign: "left", fontSize: 12.5, fontWeight: 600, whiteSpace: "normal" }}>{label}</td>
               <td><input className="in" value={f.rev[`${k}_m`] || ""} onChange={(e) => set(`rev.${k}_m`, e.target.value)} /></td>
               <td><input className="in" value={f.rev[`${k}_f`] || ""} onChange={(e) => set(`rev.${k}_f`, e.target.value)} /></td>
             </tr>
@@ -5090,7 +5116,7 @@ function AuditWizard({ client, me, onClose, onSave, onGenerate }) {
       </div>
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: GOLD, margin: "6px 0" }}>BIENS (jusqu'à 4)</div>
       <div style={{ overflowX: "auto" }}>
-        <table className="t nowrapt">
+        <table className="t nowrapt wt">
           <thead><tr><th>Nature (RP, RS, Locatif)</th><th>Date d'acquisition</th><th>Valeur d'acquisition</th><th>Valeur actuelle</th><th>PP / NP / US · propre / commun</th><th>Revenus locatifs</th><th>SCI IS / IR</th></tr></thead>
           <tbody>
             {f.immo.biens.map((b, i) => (
@@ -5111,7 +5137,7 @@ function AuditWizard({ client, me, onClose, onSave, onGenerate }) {
     <>
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: GOLD, margin: "0 0 6px" }}>CHARGES IMMOBILIÈRES</div>
       <div style={{ overflowX: "auto" }}>
-        <table className="t nowrapt">
+        <table className="t nowrapt wt">
           <thead><tr><th>Nature (amortissable / in fine)</th><th>Établissement</th><th>Montant initial</th><th>Date début</th><th>Date fin</th><th>CRD · Taux %</th><th>Charges mensuelles</th></tr></thead>
           <tbody>
             {f.charges.ch.map((b, i) => (
@@ -5126,7 +5152,7 @@ function AuditWizard({ client, me, onClose, onSave, onGenerate }) {
       </div>
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: GOLD, margin: "14px 0 6px" }}>AUTRES CHARGES · CRÉDIT CONSO · LEASING</div>
       <div style={{ overflowX: "auto" }}>
-        <table className="t nowrapt">
+        <table className="t nowrapt wt">
           <thead><tr><th>Nature</th><th>Établissement</th><th>Montant initial</th><th>Date début</th><th>Date fin</th><th>Charges mensuelles</th></tr></thead>
           <tbody>
             {f.charges.autres.map((b, i) => (
@@ -5146,12 +5172,12 @@ function AuditWizard({ client, me, onClose, onSave, onGenerate }) {
     /* 7 — PATRIMOINE FINANCIER */
     <>
       <div style={{ overflowX: "auto" }}>
-        <table className="t nowrapt">
+        <table className="t nowrapt wt">
           <thead><tr><th style={{ textAlign: "left" }}></th><th>Monsieur (€)</th><th>Madame (€)</th><th>Versement mensuel</th><th>Date d'ouverture</th><th>Établissement</th><th>Objectifs / Clause bénéf.</th></tr></thead>
           <tbody>
             {FIN_LIGNES.map(([k, label]) => (
               <tr key={k}>
-                <td style={{ textAlign: "left", fontSize: 12, fontWeight: 600, whiteSpace: "normal" }}>{label}</td>
+                <td className="rowlab" style={{ textAlign: "left", fontSize: 12, fontWeight: 600, whiteSpace: "normal" }}>{label}</td>
                 {["m", "f", "vp", "date", "etab", "obj"].map((c) => (
                   <td key={c}><input className="in" value={(f.fin[k] || {})[c] || ""} onChange={(e) => set(`fin.${k}`, { ...(f.fin[k] || {}), [c]: e.target.value })} /></td>
                 ))}
@@ -5213,7 +5239,7 @@ function AuditWizard({ client, me, onClose, onSave, onGenerate }) {
     /* 12 — CHRONOLOGIE & SYNTHÈSE */
     <>
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: GOLD, margin: "0 0 6px" }}>CHRONOLOGIE DES RENDEZ-VOUS</div>
-      <table className="t">
+      <table className="t wt">
         <thead><tr><th>Thèmes</th><th>Objectifs</th><th>Date</th></tr></thead>
         <tbody>
           {f.chrono.map((c, i) => (
@@ -5450,7 +5476,7 @@ async function genererAuditPdf(client, f, me, update) {
 }
 
 /* Résumé de l'audit guidé, visible sur la fiche client */
-function AuditFormSynthese({ f }) {
+function AuditFormSynthese({ f, cols }) {
   const ec = f.ec || {}, imp = f.imp || {}, moy = f.moyens || {}, fin = f.fin || {};
   const objTxt = Object.entries(f.obj || {}).filter(([, v]) => v).sort((a, b) => a[1] - b[1]).map(([o, v]) => `${v}. ${o.split("·")[0].trim()}`).slice(0, 3).join(" · ");
   const finTxt = FIN_LIGNES.filter(([k]) => (fin[k] || {}).m || (fin[k] || {}).f)
@@ -5469,7 +5495,7 @@ function AuditFormSynthese({ f }) {
   ].filter((x) => (x[2] || "").toString().trim());
   if (!items.length) return <div style={{ color: "#8593a8", fontSize: 13.5 }}>Parcours entamé — complétez les sections pour alimenter ce résumé.</div>;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols || 3}, 1fr)`, gap: 8 }}>
       {items.map(([ic, l, v]) => (
         <div key={l} style={{ background: "#f8f9fc", borderRadius: 8, padding: "8px 10px", borderLeft: `3px solid ${GOLD}` }}>
           <div style={{ fontSize: 10.5, color: "#8593a8", textTransform: "uppercase", letterSpacing: 0.5 }}>{ic} {l}</div>
