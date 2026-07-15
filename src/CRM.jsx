@@ -382,6 +382,16 @@ const CSS = `
   .loginbox .gold { color:${GOLD}; letter-spacing: 3px; font-size: 11px; text-transform: uppercase; text-align:center; display:block; margin-bottom: 26px; margin-top: 4px; }
   .userbtn { display:flex; justify-content:space-between; align-items:center; width:100%; padding: 13px 16px; border:1px solid #cdd6e2; border-radius:10px; background:#fff; cursor:pointer; font-size: 15px; margin-bottom: 10px; }
   .userbtn:hover { border-color:${GOLD}; background:#fdf9f0; }
+  /* ---- Portefeuille client : lignes selon statut ---- */
+  table.pft { table-layout: fixed; width:100%; }
+  table.pft td { height:34px; white-space:nowrap; vertical-align:middle; overflow:hidden; }
+  table.pft input, table.pft select { width:100%; min-width:0; text-overflow:ellipsis; }
+  tr.pfa td { background:#e9f5eb; }
+  tr.pfi td { background:#fbe4e2; }
+  tr.pfa:hover td, tr.pfi:hover td { filter: brightness(.97); }
+  .crm.dark tr.pfa td { background:#173523; }
+  .crm.dark tr.pfi td { background:#3a1e1b; }
+
   /* ---- Tableaux quadrillés du parcours d'audit ---- */
   table.wt { border-collapse: collapse; width:100%; }
   table.wt th { background:${NAVY}; color:#fff; border:1px solid #2c405f; font-size:10.5px; letter-spacing:.4px; padding:8px 6px; text-transform:uppercase; }
@@ -526,15 +536,16 @@ export default function App() {
   const [mailTpl, setMailTpl] = useState([]);           // modèles d'e-mails (messagerie)
   const [settings, setSettings] = useState({});         // réglages (image de fond…)
   const [prosObj, setProsObj] = useState({});           // objectifs hebdo de prospection
+  const [portefeuille, setPortefeuille] = useState([]); // portefeuille client (vue d'ensemble contrats)
   const [backupModal, setBackupModal] = useState(null); // fenêtre export/import par copier-coller
 
   /* ---- Chargement initial ---- */
   useEffect(() => {
     (async () => {
-      const [u, c, s, d, b, p, o, t, rc, mt, st, po] = await Promise.all([
+      const [u, c, s, d, b, p, o, t, rc, mt, st, po, pf] = await Promise.all([
         sGet("crm-users"), sGet("crm-clients"), sGet("crm-sales"), sGet("crm-docs"), sGet("crm-bordereaux"),
         sGet("crm-prospection"), sGet("crm-objectifs"), sGet("crm-trash"),
-        sGet("crm-rdv-clients"), sGet("crm-mailtpl"), sGet("crm-settings"), sGet("crm-objectifs-prospection"),
+        sGet("crm-rdv-clients"), sGet("crm-mailtpl"), sGet("crm-settings"), sGet("crm-objectifs-prospection"), sGet("crm-portefeuille"),
       ]);
       const loadedUsers = u && u.length ? u : DEFAULT_USERS;
       setUsers(loadedUsers);
@@ -554,6 +565,8 @@ export default function App() {
       setRdvClients(rc || []);
       setSettings(st || {});
       setProsObj(po || {});
+      if (pf && pf.length) setPortefeuille(pf);
+      else { setPortefeuille(PORTEFEUILLE_SEED); sSet("crm-portefeuille", PORTEFEUILLE_SEED); }
       setMailTpl(mt && mt.length ? mt : DEFAULT_MAIL_TEMPLATES);
       if (!mt || !mt.length) await sSet("crm-mailtpl", DEFAULT_MAIL_TEMPLATES);
       /* Purge automatique de la corbeille après 30 jours */
@@ -576,6 +589,7 @@ export default function App() {
   const saveMailTpl = (v) => { setMailTpl(v); sSet("crm-mailtpl", v); };
   const saveSettings = (v) => { setSettings(v); sSet("crm-settings", v); };
   const saveProsObj = (v) => { setProsObj(v); sSet("crm-objectifs-prospection", v); };
+  const savePortefeuille = (v) => { setPortefeuille(v); sSet("crm-portefeuille", v); };
   const toTrash = (kind, data) => saveTrash([...trash, { id: uid(), kind, data, deletedAt: new Date().toISOString(), deletedBy: me ? me.id : "?" }]);
 
   if (loading) {
@@ -608,6 +622,7 @@ export default function App() {
     ["clients", "👥 Clients"],
     ["prospection", "🎯 Prospection"],
     ["ventes", "📈 Ventes équipe"],
+    ...(me.isManager ? [["portefeuille", "💼 Portefeuille client"]] : []),
     ["messagerie", "✉️ Messagerie"],
     ["paye", "💶 Ma rémunération"],
     ["docs", "📁 Documents"],
@@ -657,7 +672,7 @@ export default function App() {
               <button
                 className="btn ghost sm" style={{ width: "100%", marginBottom: 6 }}
                 onClick={() => {
-                  const payload = { version: 6, date: todayISO(), users, clients, sales, docs, bordereaux, prospection, objectifs, trash, rdvClients, mailTpl, settings, prosObj };
+                  const payload = { version: 7, date: todayISO(), users, clients, sales, docs, bordereaux, prospection, objectifs, trash, rdvClients, mailTpl, settings, prosObj, portefeuille };
                   const text = JSON.stringify(payload);
                   /* Tentative de téléchargement (peut être bloqué selon l'environnement) */
                   try {
@@ -727,6 +742,7 @@ export default function App() {
             remove={() => { if (confirm("Mettre cette fiche client à la corbeille ? (restaurable pendant 30 jours)")) { toTrash("client", clients.find((c) => c.id === openClient)); saveClients(clients.filter((c) => c.id !== openClient)); setOpenClient(null); } }}
           />
         )}
+        {page === "portefeuille" && (me.isManager ? <PortefeuillePage portefeuille={portefeuille} savePortefeuille={savePortefeuille} /> : <AccessDenied />)}
         {page === "ventes" && <SalesPage sales={sales} saveSales={saveSales} users={users} objectifs={objectifs} saveObjectifs={saveObjectifs} me={me} clients={clients} saveClients={saveClients} />}
         {page === "decom" && me.isManager && <DecomPage sales={sales} users={users} />}
         {page === "paye" && <PayePage view={view} sales={sales} bordereaux={bordereaux} saveBordereaux={saveBordereaux} />}
@@ -769,6 +785,7 @@ export default function App() {
                 if (p.mailTpl) saveMailTpl(p.mailTpl);
                 if (p.settings) saveSettings(p.settings);
                 if (p.prosObj) saveProsObj(p.prosObj);
+                if (p.portefeuille) savePortefeuille(p.portefeuille);
                 alert("Import terminé ✓ Vos données sont restaurées.");
                 setBackupModal(null);
               } catch { alert("Impossible de lire cette sauvegarde. Vérifiez que le texte est copié en entier."); }
@@ -5502,6 +5519,121 @@ function AuditFormSynthese({ f, cols }) {
           <div style={{ fontSize: 12.5, color: NAVY, marginTop: 2 }}>{v}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ================= PORTEFEUILLE CLIENT (vue d'ensemble contrats) ================= */
+function PortefeuillePage({ portefeuille, savePortefeuille }) {
+  const [q, setQ] = useState("");
+  const [filtre, setFiltre] = useState("tous"); // tous | ACTIF | INACTIF
+
+  const upd = (id, patch) => savePortefeuille(portefeuille.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const del = (r) => { if (confirm(`Supprimer ${r.nom || "cette ligne"} du portefeuille ?`)) savePortefeuille(portefeuille.filter((x) => x.id !== r.id)); };
+  const add = () => savePortefeuille([...portefeuille, { id: uid(), adhesion: todayISO(), statut: "ACTIF", telephone: "", email: "", nom: "", per1: "", per2: "", prev: "", pj: "", av: "", commentaires: "" }]);
+
+  const nrm = (s) => (s || "").toString().toLowerCase();
+  const filtered = portefeuille
+    .filter((r) => filtre === "tous" || (r.statut || "") === filtre)
+    .filter((r) => !q.trim() || [r.nom, r.telephone, r.email, r.per1, r.per2, r.prev, r.pj, r.av, r.commentaires].some((v) => nrm(v).includes(nrm(q))))
+    .slice().sort((a, b) => (a.adhesion || "9999").localeCompare(b.adhesion || "9999") || (a.nom || "").localeCompare(b.nom || ""));
+
+  const nA = portefeuille.filter((r) => r.statut === "ACTIF").length;
+  const nI = portefeuille.filter((r) => r.statut === "INACTIF").length;
+  const nbProd = (k) => portefeuille.filter((r) => (r[k] || "").trim()).length;
+
+  const exportXls = async () => {
+    const XLSX = await loadXLSX();
+    const data = [["ADHESION", "STATUT", "TELEPHONE", "MAILS", "NOM PRENOM", "PER 1", "PER 2", "PREVOYANCE", "PROTECTION JURIDIQUE", "ASSURANCE VIE", "COMMENTAIRES"],
+      ...filtered.map((r) => [r.adhesion ? fmtDate(r.adhesion) : "", r.statut, r.telephone, r.email, r.nom, r.per1, r.per2, r.prev, r.pj, r.av, r.commentaires])];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws["!cols"] = [{ wch: 11 }, { wch: 9 }, { wch: 13 }, { wch: 28 }, { wch: 26 }, { wch: 17 }, { wch: 15 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 32 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Portefeuille");
+    XLSX.writeFile(wb, `Portefeuille clients ELYON ${todayISO()}.xlsx`);
+  };
+
+  return (
+    <div>
+      <div className="ph">
+        <div>
+          <h1>💼 Portefeuille client</h1>
+          <div className="sub">{portefeuille.length} client(s) · vue d'ensemble des contrats</div>
+        </div>
+        <div className="row">
+          <button className="btn ghost" onClick={exportXls}>📥 Export Excel</button>
+          <button className="btn gold" onClick={add}>+ Ajouter un client</button>
+        </div>
+      </div>
+
+      <div className="kpis" style={{ gridTemplateColumns: "repeat(6, 1fr)", marginBottom: 16 }}>
+        <div className="kpi"><div className="n">{portefeuille.length}</div><div className="l">Clients</div></div>
+        <div className="kpi" style={{ borderLeftColor: "#1b7a3d" }}><div className="n" style={{ color: "#1b7a3d" }}>{nA}</div><div className="l">🟢 Actifs</div></div>
+        <div className="kpi" style={{ borderLeftColor: "#B3261E" }}><div className="n" style={{ color: "#B3261E" }}>{nI}</div><div className="l">🔴 Inactifs</div></div>
+        <div className="kpi"><div className="n">{nbProd("per1") + nbProd("per2")}</div><div className="l">PER</div></div>
+        <div className="kpi"><div className="n">{nbProd("prev")}</div><div className="l">Prévoyance</div></div>
+        <div className="kpi"><div className="n">{nbProd("av")}</div><div className="l">Assurance vie</div></div>
+      </div>
+
+      <div className="row" style={{ marginBottom: 12 }}>
+        <input className="in" style={{ maxWidth: 320 }} placeholder="🔍 Rechercher (nom, produit, téléphone…)" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="row" style={{ gap: 0, border: "1px solid #cdd6e2", borderRadius: 8, overflow: "hidden" }}>
+          {[["tous", "Tous"], ["ACTIF", "🟢 Actifs"], ["INACTIF", "🔴 Inactifs"]].map(([k, l]) => (
+            <button key={k} onClick={() => setFiltre(k)}
+              style={{ border: "none", padding: "8px 14px", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", background: filtre === k ? NAVY : "#fff", color: filtre === k ? "#fff" : NAVY }}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="card" style={{ overflowX: "auto" }}>
+        <table className="t salest pft">
+          <thead>
+            <tr>
+              <th style={{ width: "7.5%" }}>Adhésion</th>
+              <th style={{ width: "7%" }}>Statut</th>
+              <th style={{ width: "8%" }}>Téléphone</th>
+              <th style={{ width: "13%" }}>E-mail</th>
+              <th style={{ width: "13.5%" }}>Nom Prénom</th>
+              <th style={{ width: "9%" }}>PER 1</th>
+              <th style={{ width: "8%" }}>PER 2</th>
+              <th style={{ width: "7.5%" }}>Prévoyance</th>
+              <th style={{ width: "7.5%" }}>Protection juridique</th>
+              <th style={{ width: "7.5%" }}>Assurance vie</th>
+              <th style={{ width: "9%" }}>Commentaires</th>
+              <th style={{ width: "2.5%" }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((r) => (
+              <tr key={r.id} className={r.statut === "ACTIF" ? "pfa" : r.statut === "INACTIF" ? "pfi" : ""} title={(r.commentaires || "").trim() || undefined}>
+                <td><input type="date" className="in" value={r.adhesion || ""} onChange={(e) => upd(r.id, { adhesion: e.target.value })} /></td>
+                <td>
+                  <select className="sel" value={r.statut || ""} onChange={(e) => upd(r.id, { statut: e.target.value })}
+                    style={{ fontWeight: 700, color: r.statut === "ACTIF" ? "#1b7a3d" : r.statut === "INACTIF" ? "#B3261E" : undefined }}>
+                    <option value=""></option><option>ACTIF</option><option>INACTIF</option>
+                  </select>
+                </td>
+                <td><input className="in" value={r.telephone || ""} onChange={(e) => upd(r.id, { telephone: e.target.value.replace(/\s/g, "") })} /></td>
+                <td><input className="in" value={r.email || ""} onChange={(e) => upd(r.id, { email: e.target.value })} /></td>
+                <td><input className="in" style={{ fontWeight: 700, textTransform: "uppercase" }} value={r.nom || ""} onChange={(e) => upd(r.id, { nom: e.target.value.toUpperCase() })} /></td>
+                <td><input className="in" value={r.per1 || ""} onChange={(e) => upd(r.id, { per1: e.target.value })} /></td>
+                <td><input className="in" value={r.per2 || ""} onChange={(e) => upd(r.id, { per2: e.target.value })} /></td>
+                <td><input className="in" value={r.prev || ""} onChange={(e) => upd(r.id, { prev: e.target.value })} /></td>
+                <td><input className="in" value={r.pj || ""} onChange={(e) => upd(r.id, { pj: e.target.value })} /></td>
+                <td><input className="in" value={r.av || ""} onChange={(e) => upd(r.id, { av: e.target.value })} /></td>
+                <td><input className="in" value={r.commentaires || ""} onChange={(e) => upd(r.id, { commentaires: e.target.value })} /></td>
+                <td><button className="btn danger sm" title="Supprimer" onClick={() => del(r)}>✕</button></td>
+              </tr>
+            ))}
+            {filtered.length === 0 && <tr><td colSpan={12} style={{ color: "#8593a8", fontSize: 13.5, padding: 18 }}>Aucun client ne correspond à la recherche.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 11.5, color: "#8593a8", marginTop: 8 }}>
+        🟢 ACTIF = contrat en cours (ligne verte) · 🔴 INACTIF = client parti (ligne rouge) · le commentaire complet s'affiche au survol de la ligne.
+      </div>
     </div>
   );
 }
