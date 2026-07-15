@@ -383,14 +383,22 @@ const CSS = `
   .userbtn { display:flex; justify-content:space-between; align-items:center; width:100%; padding: 13px 16px; border:1px solid #cdd6e2; border-radius:10px; background:#fff; cursor:pointer; font-size: 15px; margin-bottom: 10px; }
   .userbtn:hover { border-color:${GOLD}; background:#fdf9f0; }
   /* ---- Portefeuille client : lignes selon statut ---- */
-  table.pft { table-layout: fixed; width:100%; }
-  table.pft td { height:34px; white-space:nowrap; vertical-align:middle; overflow:hidden; }
+  table.pft { table-layout: fixed; width:100%; border-collapse: collapse; }
+  table.pft th { white-space:normal; line-height:1.25; font-size:10px; padding:8px 5px; border-left:1px solid #2c405f; border-bottom:2px solid ${GOLD}; }
+  table.pft th:first-child { border-left:none; }
+  table.pft td { height:36px; white-space:nowrap; vertical-align:middle; overflow:hidden;
+    border-bottom:1px solid #dbe2ec; border-left:1px solid #e6ebf3; padding:2px 3px; }
+  table.pft td:first-child { border-left:none; }
+  table.pft tbody tr:nth-child(even):not(.pfa):not(.pfi) td { background:#f6f8fc; }
   table.pft input, table.pft select { width:100%; min-width:0; text-overflow:ellipsis; }
-  tr.pfa td { background:#e9f5eb; }
-  tr.pfi td { background:#fbe4e2; }
-  tr.pfa:hover td, tr.pfi:hover td { filter: brightness(.97); }
-  .crm.dark tr.pfa td { background:#173523; }
-  .crm.dark tr.pfi td { background:#3a1e1b; }
+  .crm.dark table.pft td { border-bottom-color:#243657; border-left-color:#1f3050; }
+  .crm.dark table.pft tbody tr:nth-child(even):not(.pfa):not(.pfi) td { background:#16233a; }
+  table.pft tbody tr.pfa td { background:#e3f2e5; }
+  table.pft tbody tr.pfi td { background:#fbe0dd; }
+  table.pft tbody tr.pfa:hover td, table.pft tbody tr.pfi:hover td { filter: brightness(.97); }
+  table.pft input, table.pft select { background: transparent; }
+  .crm.dark table.pft tbody tr.pfa td { background:#173523; }
+  .crm.dark table.pft tbody tr.pfi td { background:#3a1e1b; }
 
   /* ---- Tableaux quadrillés du parcours d'audit ---- */
   table.wt { border-collapse: collapse; width:100%; }
@@ -5620,12 +5628,13 @@ function PortefeuillePage({ portefeuille, savePortefeuille }) {
         </div>
       </div>
 
-      <div className="kpis" style={{ gridTemplateColumns: "repeat(6, 1fr)", marginBottom: 16 }}>
+      <div className="kpis" style={{ gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 16 }}>
         <div className="kpi"><div className="n">{portefeuille.length}</div><div className="l">Clients</div></div>
         <div className="kpi" style={{ borderLeftColor: "#1b7a3d" }}><div className="n" style={{ color: "#1b7a3d" }}>{nA}</div><div className="l">🟢 Actifs</div></div>
         <div className="kpi" style={{ borderLeftColor: "#B3261E" }}><div className="n" style={{ color: "#B3261E" }}>{nI}</div><div className="l">🔴 Inactifs</div></div>
         <div className="kpi"><div className="n">{nbProd("per1") + nbProd("per2")}</div><div className="l">PER</div></div>
         <div className="kpi"><div className="n">{nbProd("prev")}</div><div className="l">Prévoyance</div></div>
+        <div className="kpi"><div className="n">{nbProd("pj")}</div><div className="l">Protection juridique</div></div>
         <div className="kpi"><div className="n">{nbProd("av")}</div><div className="l">Assurance vie</div></div>
       </div>
 
@@ -5642,20 +5651,20 @@ function PortefeuillePage({ portefeuille, savePortefeuille }) {
       </div>
 
       <div className="card" style={{ overflowX: "auto" }}>
-        <table className="t salest pft">
+        <table className="t pft">
           <thead>
             <tr>
-              <th style={{ width: "7.5%" }}>Adhésion</th>
+              <th style={{ width: "8%" }}>Adhésion</th>
               <th style={{ width: "7%" }}>Statut</th>
-              <th style={{ width: "8%" }}>Téléphone</th>
+              <th style={{ width: "8.5%" }}>Téléphone</th>
               <th style={{ width: "13%" }}>E-mail</th>
-              <th style={{ width: "13.5%" }}>Nom Prénom</th>
+              <th style={{ width: "14%" }}>Nom Prénom</th>
               <th style={{ width: "9%" }}>PER 1</th>
               <th style={{ width: "8%" }}>PER 2</th>
-              <th style={{ width: "7.5%" }}>Prévoyance</th>
-              <th style={{ width: "7.5%" }}>Protection juridique</th>
-              <th style={{ width: "7.5%" }}>Assurance vie</th>
-              <th style={{ width: "9%" }}>Commentaires</th>
+              <th style={{ width: "8%" }}>Prévoyance</th>
+              <th style={{ width: "8%" }}>Protection juridique</th>
+              <th style={{ width: "8%" }}>Assurance vie</th>
+              <th style={{ width: "6%" }}>Commentaires</th>
               <th style={{ width: "2.5%" }}></th>
             </tr>
           </thead>
