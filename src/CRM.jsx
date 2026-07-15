@@ -5561,16 +5561,26 @@ function AuditFormSynthese({ f, cols }) {
 function PortefeuillePage({ portefeuille, savePortefeuille }) {
   const [q, setQ] = useState("");
   const [filtre, setFiltre] = useState("tous"); // tous | ACTIF | INACTIF
+  const [tri, setTri] = useState("date"); // date | date-desc | az | za | contrats | statut
 
   const upd = (id, patch) => savePortefeuille(portefeuille.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const del = (r) => { if (confirm(`Supprimer ${r.nom || "cette ligne"} du portefeuille ?`)) savePortefeuille(portefeuille.filter((x) => x.id !== r.id)); };
   const add = () => savePortefeuille([...portefeuille, { id: uid(), adhesion: todayISO(), statut: "ACTIF", telephone: "", email: "", nom: "", per1: "", per2: "", prev: "", pj: "", av: "", commentaires: "" }]);
 
   const nrm = (s) => (s || "").toString().toLowerCase();
+  const nbContrats = (r) => ["per1", "per2", "prev", "pj", "av"].filter((k) => (r[k] || "").trim()).length;
+  const TRIS = {
+    "date": (a, b) => (a.adhesion || "9999").localeCompare(b.adhesion || "9999") || (a.nom || "").localeCompare(b.nom || ""),
+    "date-desc": (a, b) => (b.adhesion || "0000").localeCompare(a.adhesion || "0000") || (a.nom || "").localeCompare(b.nom || ""),
+    "az": (a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"),
+    "za": (a, b) => (b.nom || "").localeCompare(a.nom || "", "fr"),
+    "contrats": (a, b) => nbContrats(b) - nbContrats(a) || (a.nom || "").localeCompare(b.nom || ""),
+    "statut": (a, b) => ({ ACTIF: 0, "": 1, INACTIF: 2 }[a.statut || ""] - { ACTIF: 0, "": 1, INACTIF: 2 }[b.statut || ""]) || (a.nom || "").localeCompare(b.nom || ""),
+  };
   const filtered = portefeuille
     .filter((r) => filtre === "tous" || (r.statut || "") === filtre)
     .filter((r) => !q.trim() || [r.nom, r.telephone, r.email, r.per1, r.per2, r.prev, r.pj, r.av, r.commentaires].some((v) => nrm(v).includes(nrm(q))))
-    .slice().sort((a, b) => (a.adhesion || "9999").localeCompare(b.adhesion || "9999") || (a.nom || "").localeCompare(b.nom || ""));
+    .slice().sort(TRIS[tri] || TRIS["date"]);
 
   const nA = portefeuille.filter((r) => r.statut === "ACTIF").length;
   const nI = portefeuille.filter((r) => r.statut === "INACTIF").length;
@@ -5667,6 +5677,14 @@ function PortefeuillePage({ portefeuille, savePortefeuille }) {
 
       <div className="row" style={{ marginBottom: 12 }}>
         <input className="in" style={{ maxWidth: 320 }} placeholder="🔍 Rechercher (nom, produit, téléphone…)" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select className="sel" style={{ maxWidth: 250 }} value={tri} onChange={(e) => setTri(e.target.value)} title="Ordre d'affichage du tableau">
+          <option value="date">↕️ Trier : Date d'adhésion (anciens → récents)</option>
+          <option value="date-desc">↕️ Trier : Date d'adhésion (récents → anciens)</option>
+          <option value="az">↕️ Trier : Nom A → Z</option>
+          <option value="za">↕️ Trier : Nom Z → A</option>
+          <option value="contrats">↕️ Trier : Nombre de contrats (+ équipés d'abord)</option>
+          <option value="statut">↕️ Trier : Statut (actifs → inactifs)</option>
+        </select>
         <div className="row" style={{ gap: 0, border: "1px solid #cdd6e2", borderRadius: 8, overflow: "hidden" }}>
           {[["tous", "Tous"], ["ACTIF", "🟢 Actifs"], ["INACTIF", "🔴 Inactifs"]].map(([k, l]) => (
             <button key={k} onClick={() => setFiltre(k)}
