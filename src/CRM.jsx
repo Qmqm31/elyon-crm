@@ -5639,10 +5639,10 @@ function PortefeuillePage({ portefeuille, savePortefeuille }) {
 
   const exportXls = async () => {
     const XLSX = await loadXLSX();
-    const data = [["ADHESION", "STATUT", "TELEPHONE", "MAILS", "NOM PRENOM", "PER 1", "PER 2", "PREVOYANCE", "PROTECTION JURIDIQUE", "ASSURANCE VIE", "COMMENTAIRES"],
-      ...filtered.map((r) => [r.adhesion ? fmtDate(r.adhesion) : "", r.statut, r.telephone, r.email, r.nom, r.per1, r.per2, r.prev, r.pj, r.av, r.commentaires])];
+    const data = [["NOM PRENOM", "ADHESION", "STATUT", "TELEPHONE", "MAILS", "PER 1", "PER 2", "PREVOYANCE", "PROTECTION JURIDIQUE", "ASSURANCE VIE", "COMMENTAIRES"],
+      ...filtered.map((r) => [r.nom, r.adhesion ? fmtDate(r.adhesion) : "", r.statut, r.telephone, r.email, r.per1, r.per2, r.prev, r.pj, r.av, r.commentaires])];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws["!cols"] = [{ wch: 11 }, { wch: 9 }, { wch: 13 }, { wch: 28 }, { wch: 26 }, { wch: 17 }, { wch: 15 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 32 }];
+    ws["!cols"] = [{ wch: 26 }, { wch: 11 }, { wch: 9 }, { wch: 13 }, { wch: 28 }, { wch: 17 }, { wch: 15 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 32 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Portefeuille");
     XLSX.writeFile(wb, `Portefeuille clients ELYON ${todayISO()}.xlsx`);
@@ -5699,23 +5699,23 @@ function PortefeuillePage({ portefeuille, savePortefeuille }) {
         <table className="t pft">
           <thead>
             <tr>
-              <th style={{ width: "8%" }}>Adhésion</th>
-              <th style={{ width: "7%" }}>Statut</th>
+              <th style={{ width: "15%" }}>Nom Prénom</th>
+              <th style={{ width: "7.5%" }}>Adhésion</th>
+              <th style={{ width: "6.5%" }}>Statut</th>
               <th style={{ width: "8.5%" }}>Téléphone</th>
-              <th style={{ width: "13%" }}>E-mail</th>
-              <th style={{ width: "14%" }}>Nom Prénom</th>
-              <th style={{ width: "9%" }}>PER 1</th>
-              <th style={{ width: "8%" }}>PER 2</th>
-              <th style={{ width: "8%" }}>Prévoyance</th>
-              <th style={{ width: "8%" }}>Protection juridique</th>
-              <th style={{ width: "8%" }}>Assurance vie</th>
-              <th style={{ width: "6%" }}>Commentaires</th>
+              <th style={{ width: "15.5%" }}>E-mail</th>
+              <th style={{ width: "9.5%" }}>PER 1</th>
+              <th style={{ width: "9%" }}>PER 2</th>
+              <th style={{ width: "8.5%" }}>Prévoyance</th>
+              <th style={{ width: "9%" }}>Protection juridique</th>
+              <th style={{ width: "8.5%" }}>Assurance vie</th>
               <th style={{ width: "2.5%" }}></th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((r) => (
               <tr key={r.id} className={r.statut === "ACTIF" ? "pfa" : r.statut === "INACTIF" ? "pfi" : ""} title={(r.commentaires || "").trim() || undefined}>
+                <td><input className="in" style={{ fontWeight: 700, textTransform: "uppercase" }} value={r.nom || ""} onChange={(e) => upd(r.id, { nom: e.target.value.toUpperCase() })} /></td>
                 <td><input type="date" className="in" value={r.adhesion || ""} onChange={(e) => upd(r.id, { adhesion: e.target.value })} /></td>
                 <td>
                   <select className="sel" value={r.statut || ""} onChange={(e) => upd(r.id, { statut: e.target.value })}
@@ -5725,17 +5725,15 @@ function PortefeuillePage({ portefeuille, savePortefeuille }) {
                 </td>
                 <td><input className="in" value={r.telephone || ""} onChange={(e) => upd(r.id, { telephone: e.target.value.replace(/\s/g, "") })} /></td>
                 <td><input className="in" value={r.email || ""} onChange={(e) => upd(r.id, { email: e.target.value })} /></td>
-                <td><input className="in" style={{ fontWeight: 700, textTransform: "uppercase" }} value={r.nom || ""} onChange={(e) => upd(r.id, { nom: e.target.value.toUpperCase() })} /></td>
                 <td><input className="in" value={r.per1 || ""} onChange={(e) => upd(r.id, { per1: e.target.value })} /></td>
                 <td><input className="in" value={r.per2 || ""} onChange={(e) => upd(r.id, { per2: e.target.value })} /></td>
                 <td><input className="in" value={r.prev || ""} onChange={(e) => upd(r.id, { prev: e.target.value })} /></td>
                 <td><input className="in" value={r.pj || ""} onChange={(e) => upd(r.id, { pj: e.target.value })} /></td>
                 <td><input className="in" value={r.av || ""} onChange={(e) => upd(r.id, { av: e.target.value })} /></td>
-                <td><input className="in" value={r.commentaires || ""} onChange={(e) => upd(r.id, { commentaires: e.target.value })} /></td>
-                <td><button className="btn danger sm" title="Supprimer" onClick={() => del(r)}>✕</button></td>
+                <td><button className="btn danger sm" title="Supprimer la ligne" onClick={() => del(r)}>✕</button></td>
               </tr>
             ))}
-            {filtered.length === 0 && <tr><td colSpan={12} style={{ color: "#8593a8", fontSize: 13.5, padding: 18 }}>Aucun client ne correspond à la recherche.</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={11} style={{ color: "#8593a8", fontSize: 13.5, padding: 18 }}>Aucun client ne correspond à la recherche.</td></tr>}
           </tbody>
         </table>
       </div>
