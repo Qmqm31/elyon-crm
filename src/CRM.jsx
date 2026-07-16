@@ -399,14 +399,14 @@ const CSS = `
   .userbtn { display:flex; justify-content:space-between; align-items:center; width:100%; padding: 13px 16px; border:1px solid #cdd6e2; border-radius:10px; background:#fff; cursor:pointer; font-size: 15px; margin-bottom: 10px; }
   .userbtn:hover { border-color:${GOLD}; background:#fdf9f0; }
   /* ---- Portefeuille client : lignes selon statut ---- */
-  table.pft { table-layout: fixed; width:100%; border-collapse: collapse; }
-  table.pft th { white-space:normal; line-height:1.25; font-size:10px; padding:8px 5px; border-left:1px solid #2c405f; border-bottom:2px solid ${GOLD}; }
+  table.pft { table-layout: fixed; width:100%; min-width: 1960px; border-collapse: collapse; }
+  table.pft th { white-space:nowrap; line-height:1.25; font-size:11px; padding:9px 8px; border-left:1px solid #2c405f; border-bottom:2px solid ${GOLD}; }
   table.pft th:first-child { border-left:none; }
-  table.pft td { height:36px; white-space:nowrap; vertical-align:middle; overflow:hidden;
-    border-bottom:1px solid #dbe2ec; border-left:1px solid #e6ebf3; padding:2px 3px; }
+  table.pft td { height:38px; white-space:nowrap; vertical-align:middle;
+    border-bottom:1px solid #dbe2ec; border-left:1px solid #e6ebf3; padding:2px 6px; }
   table.pft td:first-child { border-left:none; }
   table.pft tbody tr:nth-child(even):not(.pfa):not(.pfi) td { background:#f6f8fc; }
-  table.pft input, table.pft select { width:100%; min-width:0; text-overflow:ellipsis; }
+  table.pft input, table.pft select { width:100%; min-width:0; font-size:13px; }
   .crm.dark table.pft td { border-bottom-color:#243657; border-left-color:#1f3050; }
   .crm.dark table.pft tbody tr:nth-child(even):not(.pfa):not(.pfi) td { background:#16233a; }
   table.pft tbody tr.pfa td { background:#e3f2e5; }
@@ -5699,17 +5699,17 @@ function PortefeuillePage({ portefeuille, savePortefeuille }) {
         <table className="t pft">
           <thead>
             <tr>
-              <th style={{ width: "15%" }}>Nom Prénom</th>
-              <th style={{ width: "7.5%" }}>Adhésion</th>
-              <th style={{ width: "6.5%" }}>Statut</th>
-              <th style={{ width: "8.5%" }}>Téléphone</th>
-              <th style={{ width: "15.5%" }}>E-mail</th>
-              <th style={{ width: "9.5%" }}>PER 1</th>
-              <th style={{ width: "9%" }}>PER 2</th>
-              <th style={{ width: "8.5%" }}>Prévoyance</th>
-              <th style={{ width: "9%" }}>Protection juridique</th>
-              <th style={{ width: "8.5%" }}>Assurance vie</th>
-              <th style={{ width: "2.5%" }}></th>
+              <th style={{ width: 260 }}>Nom Prénom</th>
+              <th style={{ width: 130 }}>Adhésion</th>
+              <th style={{ width: 120 }}>Statut</th>
+              <th style={{ width: 140 }}>Téléphone</th>
+              <th style={{ width: 300 }}>E-mail</th>
+              <th style={{ width: 220 }}>PER 1</th>
+              <th style={{ width: 200 }}>PER 2</th>
+              <th style={{ width: 180 }}>Prévoyance</th>
+              <th style={{ width: 180 }}>Protection juridique</th>
+              <th style={{ width: 180 }}>Assurance vie</th>
+              <th style={{ width: 48 }}></th>
             </tr>
           </thead>
           <tbody>
